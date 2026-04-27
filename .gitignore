@@ -1,0 +1,33 @@
+.env
+.env.*.local
+.env.local
+
+# Composer
+/vendor/
+composer.phar
+
+# Logs & runtime
+*.log
+/storage/*.key
+/storage/logs/
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/views/
+/storage/app/public/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local docker overrides
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Build artifacts
+/public/build/
+/public/hot
+/node_modules/
