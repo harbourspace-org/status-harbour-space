@@ -1,0 +1,43 @@
+services:
+  app:
+    image: cachethq/cachet:latest
+    container_name: status-harbour-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - cachet_storage:/var/www/html/storage
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: status-harbour-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - cachet_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: status-harbour-redis
+    restart: unless-stopped
+    volumes:
+      - cachet_redis:/data
+
+volumes:
+  cachet_db:
+  cachet_redis:
+  cachet_storage:
