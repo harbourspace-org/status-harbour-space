@@ -24,7 +24,12 @@ const html = `<!doctype html>
 </html>
 `;
 
+// Scoped to status.harbour.space only — set in the app, not Cloudflare zone,
+// so it does not affect sibling subdomains like student/lms/apply.
+const HSTS = 'max-age=31536000; includeSubDomains; preload';
+
 const server = createServer((req, res) => {
+  res.setHeader('strict-transport-security', HSTS);
   if (req.url === '/api/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', placeholder: true }));
