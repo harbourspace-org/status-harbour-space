@@ -30,10 +30,12 @@ Initial set. Owners and probes to be confirmed during implementation (see Linear
 
 The third-party group is informational — it links to the providers' own status pages rather than running our own probes against them.
 
-## Severity levels (mapped to Cachet statuses)
+## Severity levels
 
-| Cachet status | When to use |
-|---------------|-------------|
+The app supports five status levels per component. These map directly to what the public page renders.
+
+| Status | When to use |
+|--------|-------------|
 | Operational | Everything fine |
 | Performance issues | Latency or error rate elevated but service usable |
 | Partial outage | Some users / some features affected |

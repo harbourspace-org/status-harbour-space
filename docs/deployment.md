@@ -1,98 +1,118 @@
 # Deployment
 
+The app is deployed to **Railway** as a single container, built from the repo's `Dockerfile`. There is no docker-compose anywhere in the production path.
+
 ## Prerequisites
 
-- Docker + Docker Compose v2 on the host
+- A Railway account with billing enabled
 - DNS control over `harbour.space`
-- Cloudflare account with `harbour.space` zone
-- SMTP credentials for `status@harbour.space`
-- A separate VPS / VM not shared with the production app cluster (failure isolation)
+- A Resend account (or another transactional email provider)
+- Push access to the `harbourspace-org/status-harbour-space` GitHub repo
 
 ## First-time setup
 
-### 1. Provision the host
+### 1. Create the Railway project
 
-- Ubuntu 24.04 LTS, 2 vCPU / 4 GB RAM minimum
-- Open inbound: 80, 443
-- Set up unattended-upgrades for security patches
+- New project → "Deploy from GitHub repo" → select `harbourspace-org/status-harbour-space`
+- Railway detects the `Dockerfile` (build setting in `railway.toml`)
+- Pick the `main` branch as the production environment
+- Create a second environment called `staging` from the same repo, pointed at any feature branch
 
-### 2. DNS
+### 2. Add Postgres
 
-- `status.harbour.space` → A record to host's public IP
-- Enable Cloudflare proxy (orange cloud)
-- TLS mode: **Full (strict)** with origin certificate
+- Inside the project → **+ New** → **Database** → **PostgreSQL**
+- Railway auto-injects `DATABASE_URL` into the app service — no extra config needed
+- Enable "Backups" in the Postgres service settings (daily, 7-day retention by default)
 
-### 3. Origin TLS
+### 3. Set environment variables
 
-Either:
+In the app service → **Variables** tab, set:
 
-- **Cloudflare origin certificate** (recommended) — generate in Cloudflare dashboard, install as `/etc/ssl/cachet/origin.crt` + `.key`, no renewal needed for 15 years
-- **Let's Encrypt** via certbot — automatic renewal, but origin must be reachable on port 80
+| Variable | Value |
+|----------|-------|
+| `APP_URL` | `https://status.harbour.space` (production) / `https://status-staging.harbour.space` (staging) |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `ADMIN_EMAILS` | comma-separated list of on-call engineer emails |
+| `RESEND_API_KEY` | from the Resend dashboard |
+| `MAIL_FROM_ADDRESS` | `status@harbour.space` |
+| `MAIL_FROM_NAME` | `"Harbour.Space Status"` |
+| `SLACK_WEBHOOK_URL` | (optional) |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | (optional) |
+| `WEBHOOK_SHARED_SECRET` | random string — protects `/api/webhooks/incident` |
 
-### 4. Reverse proxy
+`DATABASE_URL` is set automatically when Postgres is linked. Do not override.
 
-A minimal nginx config is in `deploy/nginx/status.conf` (to be added — see Linear issue). Cachet listens on `:8000` inside the compose network; nginx terminates TLS and proxies to it.
+### 4. Custom domain
 
-### 5. Bring up the stack
+- App service → **Settings** → **Domains** → **Custom domain**
+- Add `status.harbour.space` (production) and `status-staging.harbour.space` (staging)
+- Railway shows a CNAME target — add it in your DNS provider, proxied through Cloudflare if you want
+- Railway provisions TLS automatically once DNS resolves (no certbot, no nginx config)
 
-```bash
-git clone git@github.com:harbourspace-org/status-harbour-space.git
-cd status-harbour-space
-cp .env.example .env
-# fill in DB_PASSWORD, MAIL_*, APP_URL=https://status.harbour.space
-docker compose up -d
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate --force
-docker compose exec app php artisan cachet:install
-```
+### 5. First deploy
+
+Push to `main`. Railway picks it up and runs:
+
+1. `docker build -f Dockerfile .`
+2. `node server.js` (the standalone Next.js entrypoint)
+
+The healthcheck at `/api/health` must return 200 within 30 seconds for Railway to mark the deploy live.
 
 ### 6. First admin user
 
-```bash
-docker compose exec app php artisan cachet:user:create
-```
-
-Then log in at `https://status.harbour.space/dashboard`.
+The app does not seed users. The first time someone whose email is in `ADMIN_EMAILS` signs in via the magic-link flow, they get the admin role.
 
 ## Routine operations
 
 ### Backups
 
-A cron on the host runs nightly:
+Railway-managed Postgres takes daily backups. Restore from the Postgres service → **Backups** tab. Snapshot the DB manually before any schema-changing deploy:
 
-```bash
-0 3 * * * docker compose -f /opt/status/docker-compose.yml exec -T postgres \
-  pg_dump -U cachet cachet | gzip > /var/backups/cachet/$(date +%F).sql.gz && \
-  aws s3 cp /var/backups/cachet/$(date +%F).sql.gz s3://harbour-backups/status/
-```
+- Postgres service → **Data** → **Snapshot now**
 
-Retention: 30 days local, 90 days S3.
+Retention: 7 days by default; bump to 30 in Settings if needed.
 
 ### Updates
 
-```bash
-git pull
-docker compose pull
-docker compose up -d
-docker compose exec app php artisan migrate --force
+Push to `main` → auto-deploy. For larger changes, push to a feature branch and let it deploy to staging first.
+
+```
+git checkout -b feat/whatever
+# ... commits ...
+git push
+# open PR; staging environment auto-deploys this branch
 ```
 
-Pin image tags in production — never deploy `:latest` blindly. Update the tag, test in staging, then merge.
+### Logs and metrics
 
-### Health checks
+- Railway dashboard → app service → **Logs** (live tail)
+- Metrics tab → CPU, memory, network
+- For deeper debugging, use `railway logs --service status-harbour-space`
 
-The container exposes `/api/v1/ping` which returns `{"data":"Pong!"}`. Cloudflare or an external probe should hit this every minute and alert if it fails.
+## Local dev (no compose)
 
-## Staging
+```bash
+# Postgres locally (one-off container)
+docker run --name status-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 -d postgres:16-alpine
 
-There is a separate stack `status-staging.harbour.space` for testing config and Cachet upgrades before production. Same compose file, different DNS, different `.env`.
+# App
+cp .env.example .env
+# fill in DATABASE_URL=postgres://postgres:dev@localhost:5432/postgres and AUTH_SECRET
+npm install
+npm run db:migrate
+npm run dev
+```
+
+`npm run dev` runs Next.js in dev mode. The probe loop boots automatically and hits whatever `probe_url`s you have in the DB. Seed sensible test components via `npm run db:seed`.
 
 ## Rollback
 
-Cachet upgrades that touch the schema are not always reversible. Before any upgrade:
+Railway keeps every previous deploy. To roll back:
 
-1. Take a manual `pg_dump`
-2. Snapshot the host (if the provider supports it)
-3. Tag the current image version
+- App service → **Deployments** tab → pick a previous deploy → **Redeploy**
 
-Roll back by restoring the dump and switching the image tag.
+For schema-incompatible rollbacks: restore the Postgres snapshot taken before the deploy, then redeploy the older image.
+
+## Staging
+
+`status-staging.harbour.space` runs the same app from a different branch (typically `staging` or whatever PR is open). It uses a separate Postgres instance — staging data is throwaway.

@@ -4,7 +4,7 @@ When a Harbour.Space service is degraded or down, the **on-call engineer** is re
 
 ## 1. Open the incident first
 
-Before debugging, open the Cachet admin (`status.harbour.space/dashboard`) and create an incident:
+Before debugging, open the admin dashboard at `https://status.harbour.space/admin` and create an incident:
 
 - **Title**: short, user-facing, no internal jargon. Good: "Student Space login is failing". Bad: "Redis connection timeout in auth-svc".
 - **Status**: `Investigating`
@@ -16,7 +16,7 @@ Why first? Users hit refresh and check Twitter. A status page that's silent duri
 
 ## 2. Update every 30 minutes minimum
 
-Even "still investigating, no new info" is useful. The Cachet timeline goes:
+Even "still investigating, no new info" is useful. The incident timeline goes:
 
 ```
 Investigating → Identified → Monitoring → Resolved
@@ -59,7 +59,7 @@ For planned work, create a **Schedule** (not an Incident) at least 48 hours in a
 - Title: "Scheduled maintenance — \[component]"
 - Start / end times in UTC
 - What changes for users (downtime? read-only? no impact?)
-- Send notification to subscribers (Cachet does this automatically when the schedule is published)
+- Send notification to subscribers (the app does this automatically when the schedule is published)
 
 ## 6. Communication channels (in order)
 
