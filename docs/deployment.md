@@ -126,9 +126,25 @@ If an agent goes silent for `AGENT_STALE_AFTER_SECONDS` (default 300), the publi
 
 ### Backups
 
-Railway-managed Postgres: daily backups. Restore from the Postgres service → **Backups**. Snapshot manually before any schema-changing deploy:
+Railway's managed Postgres backups are a paid-plan feature, so we run our own with `pg_dump` from GitHub Actions:
 
-- Postgres service → **Data** → **Snapshot now**
+- Workflow: [`.github/workflows/postgres-backup.yml`](../.github/workflows/postgres-backup.yml)
+- Schedule: daily at 03:00 UTC
+- Retention: 30 days (Actions artifact retention)
+- Required repo secret: `PROD_DATABASE_PUBLIC_URL` (copy from Railway → Postgres → Variables → `DATABASE_PUBLIC_URL`)
+
+**Manual snapshot** (before any schema-changing deploy):
+
+- GitHub → Actions → "Postgres backup" → **Run workflow**
+
+**Restore** (download the `.dump` artifact from the workflow run, then):
+
+```bash
+pg_restore --clean --if-exists --no-owner --no-privileges \
+  -d "$TARGET_DATABASE_URL" backup-YYYYMMDDTHHMMSSZ.dump
+```
+
+For a non-destructive verify-restore, point `$TARGET_DATABASE_URL` at a fresh staging or local Postgres rather than production.
 
 ### Updates
 
