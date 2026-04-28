@@ -11,7 +11,8 @@ Production URL: **https://status.harbour.space** (pending DNS)
 | Layer | Choice | Why |
 |-------|--------|-----|
 | Language | **TypeScript** | Boss preference; one language end-to-end |
-| Framework | **Next.js 15** (App Router) | Single codebase for UI + API routes + cron, server components, Railway has first-class support |
+| Framework | **React Router 7** (Vite, framework mode) | Vite build + SSR + loaders/actions + route handlers, all in one Node process |
+| Server | **Hono** (custom server entry) | Hosts the React Router request handler + boots the probe cron in the same process |
 | ORM | **Drizzle** | Lightweight, SQL-first, great TypeScript types |
 | Database | **Postgres** | Managed by Railway |
 | Email | **Resend** | Simple API, good deliverability, separate from our primary sender (failure isolation) |
@@ -41,7 +42,7 @@ Production URL: **https://status.harbour.space** (pending DNS)
 | Visual Regression Service | qa.harbour.space |
 | Internal API gateway | api.harbour.space |
 
-Full mapping with severities, owners, and probe URLs lives in [`docs/components.md`](docs/components.md). The probe loop runs inside the same Next.js process, hitting each component every 60 seconds and recording the response.
+Full mapping with severities, owners, and probe URLs lives in [`docs/components.md`](docs/components.md). The probe loop runs inside the same Node process as the React Router app, hitting each component every 60 seconds and recording the response.
 
 ---
 
@@ -57,10 +58,11 @@ Full mapping with severities, owners, and probe URLs lives in [`docs/components.
                 └─────────┬────────────┘
                           │
                 ┌─────────▼────────────┐
-                │  Next.js 15 (single  │  ← single Dockerfile
-                │  container)          │
+                │  Hono server (single │  ← single Dockerfile
+                │  Node process)       │
                 │  ┌──────────────┐    │
-                │  │ UI + API     │    │
+                │  │ React Router │    │
+                │  │ + API routes │    │
                 │  │ + probe cron │    │
                 │  └──────────────┘    │
                 └──────────┬───────────┘

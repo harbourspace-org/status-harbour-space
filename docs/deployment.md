@@ -54,7 +54,7 @@ In the app service → **Variables** tab, set:
 Push to `main`. Railway picks it up and runs:
 
 1. `docker build -f Dockerfile .`
-2. `node server.js` (the standalone Next.js entrypoint)
+2. `node server.js` (the custom Hono entry that mounts React Router and starts the probe cron)
 
 The healthcheck at `/api/health` must return 200 within 30 seconds for Railway to mark the deploy live.
 
@@ -103,7 +103,7 @@ npm run db:migrate
 npm run dev
 ```
 
-`npm run dev` runs Next.js in dev mode. The probe loop boots automatically and hits whatever `probe_url`s you have in the DB. Seed sensible test components via `npm run db:seed`.
+`npm run dev` starts Vite (HMR) + the Hono server. The probe loop boots automatically and hits whatever `probe_url`s you have in the DB. Seed sensible test components via `npm run db:seed`.
 
 ## Rollback
 
