@@ -1,0 +1,15 @@
+{
+  "name": "uptime-monitor",
+  "version": "0.0.1-placeholder",
+  "private": true,
+  "description": "Phase 1 placeholder — replaced in Phase 2 with the real probe loop.",
+  "type": "module",
+  "scripts": {
+    "build": "node -e \"const f=require('node:fs');f.mkdirSync('dist',{recursive:true});f.copyFileSync('src/index.js','dist/index.js');\"",
+    "start": "node dist/index.js",
+    "dev": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
