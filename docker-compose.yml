@@ -1,21 +1,33 @@
 services:
   app:
-    image: cachethq/cachet:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: status-harbour-cachet:local
     container_name: status-harbour-app
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "${HOST_PORT:-8000}:8000"
     env_file: .env
+    environment:
+      DB_DRIVER: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PREFIX: chq_
+      APP_KEY: ${APP_KEY}
+      APP_LOG: errorlog
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      DEBUG: ${APP_DEBUG:-false}
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
-    volumes:
-      - cachet_storage:/var/www/html/storage
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:12-alpine
     container_name: status-harbour-db
     restart: unless-stopped
     environment:
@@ -30,14 +42,5 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: status-harbour-redis
-    restart: unless-stopped
-    volumes:
-      - cachet_redis:/data
-
 volumes:
   cachet_db:
-  cachet_redis:
-  cachet_storage:
