@@ -3,12 +3,13 @@
 ## High-level
 
 ```
-Internet ──► Railway edge (TLS, custom domain) ──► Next.js container
+Internet ──► Railway edge (TLS, custom domain) ──► Hono server (single Node process)
                                                         │
                                   ┌─────────────────────┼─────────────────────┐
                                   │                     │                     │
-                            UI / pages          API routes              Probe scheduler
-                          (server components)   (REST + webhooks)     (node-cron, in-process)
+                          React Router 7        API route handlers      Probe scheduler
+                          (SSR pages, loaders,  (REST + webhooks,        (node-cron,
+                           actions, /admin)      mounted on Hono)         in-process)
                                   │                     │                     │
                                   └──────────┬──────────┘                     │
                                              │                                │
@@ -23,13 +24,13 @@ Internet ──► Railway edge (TLS, custom domain) ──► Next.js container
 
 Single Dockerfile. Single Node process. UI, API, and the probe loop all run in the same container — fewer moving parts than docker-compose, and the boss explicitly asked for this shape.
 
-## Why Next.js
+## Why React Router 7 (on Vite)
 
-- One codebase for UI + API routes (no separate frontend / backend repos)
-- App Router gives us server components for the public page (no client-side JS for the bits that just render data)
-- Standalone output mode → small Docker image, fast cold start
-- Railway has first-class support
-- Easy to layer on i18n (next-intl) and auth (Auth.js) without leaving the framework
+- React + Vite stack the team prefers, **with** SSR — important for the public status page (Google indexability, social-media link previews when an outage trends)
+- Loaders + actions give us per-route data fetching and mutations without ad-hoc `useEffect` plumbing
+- Built on Vite → fast HMR in dev, fast prod builds, smaller image than Next.js (~120 MB vs ~180 MB)
+- React Router's request handler can be mounted inside a custom server (Hono), which is where we boot the probe cron
+- Mature: it is Remix renamed; production-ready, well-documented
 
 ## Why not Cachet / a self-hosted PHP option
 
@@ -55,7 +56,7 @@ A `node-cron` task runs in-process every `PROBE_INTERVAL_SECONDS` (default 60). 
 3. If the component has been failing for ≥ 2 consecutive probes and there is no open incident, **auto-create an incident** in `Investigating` with severity = component's `severity_when_down`
 4. If the component recovers and there is an open auto-incident, post a `Monitoring` update — never auto-close (a human marks `Resolved`)
 
-The scheduler boots from `instrumentation.ts` so it starts when the Next.js process starts. There is no separate worker container.
+The scheduler boots from `server.js` (the custom Hono entry) before the React Router handler is mounted, so it starts the moment the container is healthy. There is no separate worker container.
 
 If we outgrow in-process scheduling, the migration is well-defined: move probes to Railway's [Cron Jobs](https://docs.railway.app/reference/cron-jobs) calling `POST /api/internal/probe` (protected by a shared secret).
 
