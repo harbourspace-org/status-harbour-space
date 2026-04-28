@@ -1,0 +1,59 @@
+name: Postgres backup
+
+# Replaces Railway's paid Postgres backup feature with a free pg_dump
+# scheduled via GitHub Actions. The dump is uploaded as a workflow
+# artifact with 30-day retention (matches HSDEV-611 sub-task 2).
+#
+# Required repository secret:
+#   PROD_DATABASE_PUBLIC_URL — copy from Railway → Postgres → Variables.
+#
+# Restore: download the .dump artifact and run
+#   pg_restore --clean --if-exists --no-owner --no-privileges \
+#     -d "$TARGET_DATABASE_URL" backup-YYYYMMDDTHHMMSSZ.dump
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # daily at 03:00 UTC
+  workflow_dispatch:       # allow manual runs (used to verify restore)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Compute backup filename
+        id: meta
+        run: echo "file=backup-$(date -u +%Y%m%dT%H%M%SZ).dump" >> "$GITHUB_OUTPUT"
+
+      - name: Run pg_dump (postgres:18 client to match server)
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_PUBLIC_URL }}
+          OUT: ${{ steps.meta.outputs.file }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::PROD_DATABASE_PUBLIC_URL secret is not set"
+            exit 1
+          fi
+          docker run --rm \
+            -v "$PWD:/backup" \
+            -e PGCONNECT_TIMEOUT=15 \
+            postgres:18-alpine \
+            pg_dump --format=custom --no-owner --no-privileges \
+              --file="/backup/$OUT" \
+              "$DATABASE_URL"
+          ls -lh "$OUT"
+
+      - name: Upload backup artifact (30-day retention)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.file }}
+          path: ${{ steps.meta.outputs.file }}
+          retention-days: 30
+          if-no-files-found: error
