@@ -1,8 +1,15 @@
 # status.harbour.space
 
-Public status page for Harbour.Space services. The app probes every component on a schedule, records uptime + incidents, and exposes a public page with subscribe-to-updates.
+Public status page for Harbour.Space services. Two services in this repo:
+
+| Service | Where it runs | What it does |
+|---------|---------------|--------------|
+| [`apps/status-page`](apps/status-page/) | Railway (one instance) | Public page, `/admin`, REST API, ingests probe results |
+| [`apps/uptime-monitor`](apps/uptime-monitor/) | Railway (EU) + internal servers (multiple regions) | Probes harbour.space components and posts results to the Status Page |
 
 Production URL: **https://status.harbour.space** (pending DNS)
+
+The split into two services is deliberate — see [`docs/architecture.md`](docs/architecture.md) for why.
 
 ---
 
@@ -10,16 +17,16 @@ Production URL: **https://status.harbour.space** (pending DNS)
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Language | **TypeScript** | Boss preference; one language end-to-end |
-| Framework | **React Router 7** (Vite, framework mode) | Vite build + SSR + loaders/actions + route handlers, all in one Node process |
-| Server | **Hono** (custom server entry) | Hosts the React Router request handler + boots the probe cron in the same process |
-| ORM | **Drizzle** | Lightweight, SQL-first, great TypeScript types |
-| Database | **Postgres** | Managed by Railway |
-| Email | **Resend** | Simple API, good deliverability, separate from our primary sender (failure isolation) |
-| Hosting | **Railway** | Boss preference; single Dockerfile deploy + managed Postgres |
-| Container | **Single Dockerfile** | One process, one image — no docker-compose in production |
+| Language | **TypeScript** | One language end-to-end |
+| Status Page framework | **React Router 7** (Vite, framework mode) + **Hono** | Vite build + SSR + loaders/actions in a single Node process |
+| Uptime monitor | **Plain Node + node-cron** | Tiny — just a probe loop and an HTTPS POST |
+| ORM | **Drizzle** | Lightweight, SQL-first |
+| Database | **Postgres** | Managed by Railway (Status Page only) |
+| Email | **Resend** | Independent of our primary transactional sender (failure isolation) |
+| Hosting | **Railway** + **internal servers** | Status Page on Railway; uptime monitor instances spread across zones |
+| Container | **One Dockerfile per service** | No docker-compose anywhere in production |
 
-## What this gives users
+## What the public page gives users
 
 - Real-time status of every Harbour.Space service (Operational / Degraded / Partial Outage / Major Outage / Maintenance)
 - 90-day uptime history per component
@@ -42,92 +49,90 @@ Production URL: **https://status.harbour.space** (pending DNS)
 | Visual Regression Service | qa.harbour.space |
 | Internal API gateway | api.harbour.space |
 
-Full mapping with severities, owners, and probe URLs lives in [`docs/components.md`](docs/components.md). The probe loop runs inside the same Node process as the React Router app, hitting each component every 60 seconds and recording the response.
+Full mapping with severities, owners, and probe URLs lives in [`docs/components.md`](docs/components.md).
 
 ---
 
-## Architecture
+## High-level architecture
 
 ```
-                ┌──────────────────────┐
-                │  status.harbour.space│  ← public visitors
-                └─────────┬────────────┘
-                          │ HTTPS
-                ┌─────────▼────────────┐
-                │   Railway edge       │  TLS, custom domain
-                └─────────┬────────────┘
-                          │
-                ┌─────────▼────────────┐
-                │  Hono server (single │  ← single Dockerfile
-                │  Node process)       │
-                │  ┌──────────────┐    │
-                │  │ React Router │    │
-                │  │ + API routes │    │
-                │  │ + probe cron │    │
-                │  └──────────────┘    │
-                └──────────┬───────────┘
-                           │
-                  ┌────────▼─────────┐
-                  │ Railway Postgres │  ← components, incidents,
-                  │                  │    probes, subscribers
-                  └──────────────────┘
-                           ▲
-                           │ HTTP probes every 60s
-                           │
-                ┌──────────┴──────────┐
-                │ harbour.space + the │  ← target services
-                │ subdomains in       │
-                │ docs/components.md  │
-                └─────────────────────┘
+                                ┌──────────────────────────────────────┐
+                                │  status.harbour.space (Status Page) │
+                                │  on Railway                         │
+                                │                                     │
+                                │  React Router 7 + Hono              │
+                                │  Drizzle → Railway Postgres         │
+                                │                                     │
+                                │  Endpoints:                         │
+                                │   • UI: / and /admin                │
+                                │   • Public API: /api/{components,   │
+                                │      incidents}                     │
+                                │   • Ingestion: /api/internal/probes │
+                                └──────▲───────▲───────▲──────────────┘
+                                       │       │       │  POST results
+                                       │       │       │  (HMAC-signed)
+                       ┌───────────────┘       │       └────────────────┐
+                       │                       │                        │
+              ┌────────┴──────┐    ┌───────────┴───────┐    ┌───────────┴──────────┐
+              │ Uptime Agent  │    │ Uptime Agent      │    │ Uptime Agent         │
+              │ Railway · EU  │    │ Internal · EU     │    │ Internal · Latam     │
+              │               │    │                   │    │                      │
+              │ probes every  │    │ probes every 60s  │    │ probes every 60s     │
+              │ 60s           │    │                   │    │                      │
+              └───────┬───────┘    └─────────┬─────────┘    └──────────┬───────────┘
+                      │                      │                         │
+                      └──────────────────────┼─────────────────────────┘
+                                             ▼
+                              ┌──────────────────────────────┐
+                              │  Probe targets:              │
+                              │   harbour.space, student.*,  │
+                              │   lms.*, apply.*, auth.*, …  │
+                              └──────────────────────────────┘
 ```
 
-Details in [`docs/architecture.md`](docs/architecture.md).
+Each agent is a separate `docker run`, behind no public ingress, just outbound HTTPS. Status Page only marks a component down when **multiple agents in different regions** report failure — single-agent network blips don't trigger false alarms.
+
+Full diagram, data model, and consensus logic in [`docs/architecture.md`](docs/architecture.md). Agent-specific design in [`docs/uptime-monitor.md`](docs/uptime-monitor.md).
 
 ---
 
 ## Local development
 
-You need Node 20+ and a local Postgres. The two-line setup:
+You only need the Status Page running for most work. The agent is straightforward and can be tested against a local Status Page.
 
 ```bash
-# 1. Run a throwaway Postgres locally
+# 1. Postgres locally
 docker run --name status-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 -d postgres:16-alpine
 
-# 2. Run the app
+# 2. Status Page
+cd apps/status-page
 cp .env.example .env
 # fill in DATABASE_URL=postgres://postgres:dev@localhost:5432/postgres and AUTH_SECRET
 npm install
 npm run db:migrate
+npm run dev      # http://localhost:3000
+
+# 3. (optional) Uptime agent pointed at local Status Page
+cd apps/uptime-monitor
+cp .env.example .env
+# fill in STATUS_PAGE_URL=http://localhost:3000, AGENT_ID=local-dev, etc.
+npm install
 npm run dev
 ```
 
-App at http://localhost:3000. Admin at /admin (sign in with one of the emails listed in `ADMIN_EMAILS`).
+There is no `docker-compose.yml` — by design. Each service is one container.
 
-We do **not** ship a `docker-compose.yml`. The application is one container — local dev runs Node directly, with Postgres as a side-process.
+## Deployment
 
-## Deployment (Railway)
-
-```bash
-railway link                 # connect to the Railway project
-railway up                   # build & deploy from this branch
-```
-
-Push to `main` auto-deploys. Full setup in [`docs/deployment.md`](docs/deployment.md).
-
----
+See [`docs/deployment.md`](docs/deployment.md). Two services, two Railway services + N internal Docker hosts for the uptime monitor.
 
 ## Incident response
 
-When something breaks, follow [`docs/incident-runbook.md`](docs/incident-runbook.md). TL;DR:
-
-1. Open an incident in `/admin` **before** debugging
-2. Set the affected component to the right status
-3. Post updates every 30 minutes minimum
-4. Resolve and write a brief post-mortem in the final update
+When something breaks, follow [`docs/incident-runbook.md`](docs/incident-runbook.md).
 
 ## Project tracking
 
-Implementation issues are tracked in Linear under the **Status Page (status.harbour.space)** project on the HS Dev Team. The roadmap is split into 5 phases (HSDEV-611 through HSDEV-615).
+Linear project: **Status Page (status.harbour.space)** on the HS Dev Team. Five phases, HSDEV-611 through HSDEV-615.
 
 ## License
 

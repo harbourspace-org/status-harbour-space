@@ -1,81 +1,103 @@
 # Architecture
 
-## High-level
+Two services. One repo.
 
 ```
-Internet ──► Railway edge (TLS, custom domain) ──► Hono server (single Node process)
-                                                        │
-                                  ┌─────────────────────┼─────────────────────┐
-                                  │                     │                     │
-                          React Router 7        API route handlers      Probe scheduler
-                          (SSR pages, loaders,  (REST + webhooks,        (node-cron,
-                           actions, /admin)      mounted on Hono)         in-process)
-                                  │                     │                     │
-                                  └──────────┬──────────┘                     │
-                                             │                                │
-                                  ┌──────────▼──────────┐                     │
-                                  │  Drizzle ORM        │◄────────────────────┘
-                                  └──────────┬──────────┘
-                                             │
-                                  ┌──────────▼──────────┐
-                                  │  Railway Postgres   │
-                                  └─────────────────────┘
+                                ┌──────────────────────────────────────┐
+                                │  Status Page (Railway)              │
+                                │                                     │
+                                │  React Router 7 + Hono              │
+                                │  Drizzle → Railway Postgres         │
+                                │                                     │
+                                │  Endpoints:                         │
+                                │   • UI: / and /admin                │
+                                │   • Public API: /api/{components,   │
+                                │      incidents}                     │
+                                │   • Ingestion: /api/internal/probes │
+                                │   • Heartbeat: /api/internal/       │
+                                │      heartbeat                      │
+                                └──────▲───────▲───────▲──────────────┘
+                                       │       │       │  POST (HMAC-signed)
+                       ┌───────────────┘       │       └────────────────┐
+              ┌────────┴──────┐    ┌───────────┴───────┐    ┌───────────┴──────────┐
+              │ Uptime Agent  │    │ Uptime Agent      │    │ Uptime Agent         │
+              │ Railway · EU  │    │ Internal · EU     │    │ Internal · Latam     │
+              └───────────────┘    └───────────────────┘    └──────────────────────┘
+                                          │
+                                          ▼ HTTP probes every 60s
+                              ┌──────────────────────────────┐
+                              │  Components in components.md │
+                              └──────────────────────────────┘
 ```
 
-Single Dockerfile. Single Node process. UI, API, and the probe loop all run in the same container — fewer moving parts than docker-compose, and the boss explicitly asked for this shape.
+## Why split
 
-## Why React Router 7 (on Vite)
+If the probe loop ran inside the Status Page, a Railway-region outage would silence our probes — we'd report "everything is fine" while the world burns, or "everything is down" because we couldn't reach anything. Both are wrong.
 
-- React + Vite stack the team prefers, **with** SSR — important for the public status page (Google indexability, social-media link previews when an outage trends)
-- Loaders + actions give us per-route data fetching and mutations without ad-hoc `useEffect` plumbing
-- Built on Vite → fast HMR in dev, fast prod builds, smaller image than Next.js (~120 MB vs ~180 MB)
-- React Router's request handler can be mounted inside a custom server (Hono), which is where we boot the probe cron
-- Mature: it is Remix renamed; production-ready, well-documented
+Running probes from multiple zones gives us **consensus**: a component is only down when independent agents in different regions agree. A single agent's network blip doesn't open an incident.
 
-## Why not Cachet / a self-hosted PHP option
+## Status Page
 
-The earlier scaffold pointed at Cachet. The boss asked us to switch to TypeScript and ship as a single container on Railway, so Cachet is gone. The behaviour we need (component statuses, incidents, scheduled maintenance, subscriptions, RSS) is straightforward to implement directly.
+Hosts everything user-facing plus the ingestion endpoint:
 
-## Data model (Drizzle)
+- **UI** — public homepage (server-rendered list of components + incidents) and `/admin` dashboard
+- **Public API** — `GET /api/components`, `GET /api/incidents`, `/feed.atom`
+- **Ingestion** — `POST /api/internal/probes` (agents post probe results, HMAC-signed)
+- **Heartbeat** — `POST /api/internal/heartbeat` (agents check in every 30s)
 
-- **components** — one row per service (name, slug, probe URL, expected status, severity-when-down, group_id)
-- **component_groups** — UI grouping (e.g. "Student-facing", "Internal", "Email & Notifications")
-- **incidents** — title, current status (Investigating / Identified / Monitoring / Resolved), severity, started_at, resolved_at
-- **incident_components** — many-to-many between incidents and components
-- **incident_updates** — timeline entries (incident_id, status, message, posted_at)
-- **schedules** — planned maintenance (title, body, starts_at, ends_at, components)
-- **subscribers** — email, confirmed_at, unsubscribe_token, optional component_id (scoped subscription)
-- **probes** — every probe result (component_id, ok, status_code, latency_ms, observed_at) — used for the 90-day uptime line
+Tech: React Router 7 (framework mode, on Vite) for the request handler; Hono as the custom server entry that mounts React Router and exposes the internal endpoints. Drizzle + Railway Postgres for state.
 
-## Probe loop
+## Uptime Monitor agent
 
-A `node-cron` task runs in-process every `PROBE_INTERVAL_SECONDS` (default 60). For each component:
+A tiny Node service. No DB, no public ingress, just outbound HTTPS:
 
-1. Fire an HTTP GET against `probe_url`
-2. Record `(ok, status_code, latency_ms, observed_at)` in the `probes` table
-3. If the component has been failing for ≥ 2 consecutive probes and there is no open incident, **auto-create an incident** in `Investigating` with severity = component's `severity_when_down`
-4. If the component recovers and there is an open auto-incident, post a `Monitoring` update — never auto-close (a human marks `Resolved`)
+1. Boots up with env vars (`STATUS_PAGE_URL`, `AGENT_ID`, `AGENT_REGION`, `AGENT_SHARED_SECRET`)
+2. Fetches the component list from `${STATUS_PAGE_URL}/api/internal/components` (cached, refreshed every 5 minutes)
+3. Every `PROBE_INTERVAL_SECONDS` (default 60), fires `HTTP GET` against each component's `probe_url` with a 5 s timeout
+4. POSTs the batch of results to `${STATUS_PAGE_URL}/api/internal/probes` with an HMAC signature
+5. Pings `/api/internal/heartbeat` every 30 s so the Status Page knows it's alive
 
-The scheduler boots from `server.js` (the custom Hono entry) before the React Router handler is mounted, so it starts the moment the container is healthy. There is no separate worker container.
+Multiple instances run in different zones — at minimum: Railway (EU), one internal server (EU), one internal server (Latam). The boss's call: "we can host it easily in several servers, in different zones."
 
-If we outgrow in-process scheduling, the migration is well-defined: move probes to Railway's [Cron Jobs](https://docs.railway.app/reference/cron-jobs) calling `POST /api/internal/probe` (protected by a shared secret).
+## Data model (Drizzle, on the Status Page)
 
-## Failure isolation
+- **components** — name, slug, probe_url, expected_status, severity_when_down, group_id
+- **component_groups** — UI grouping
+- **agents** — agent_id (PK, e.g. `railway-eu`), region, last_seen_at, registered_at
+- **probes** — (component_id, agent_id, ok, status_code, latency_ms, observed_at) — every result every agent reports
+- **incidents** — title, current_status, severity, started_at, resolved_at
+- **incident_components** — many-to-many
+- **incident_updates** — timeline (incident_id, status, message, posted_at)
+- **schedules** — planned maintenance
+- **subscribers** — email, confirmed_at, unsubscribe_token, optional component_id
 
-The status page **must not** depend on the systems it reports on. Concretely:
+## Consensus logic (Status Page side)
 
-- Hosted on Railway, fully separate from our app cluster
-- Postgres is Railway-managed (not the shared production DB)
-- Email through Resend, not the primary transactional sender
-- If the page itself goes down, fall back to the official Harbour.Space Twitter/X and the announcements channel
+For each component, every 30 s the Status Page recomputes status from the last 2 minutes of probes:
 
-## Integrations
+| Observed | Component status |
+|----------|------------------|
+| All agents OK | Operational |
+| One agent failing, others OK | Performance issues (single-zone blip) |
+| ≥ 2 agents in different regions failing | Partial outage → auto-incident |
+| All reporting agents failing | Major outage → auto-incident |
+| No reports from any agent in 5 minutes | "Monitoring offline" banner; do not change statuses |
 
-| Direction | System | Purpose |
-|-----------|--------|---------|
-| Out | Slack `#status-incidents` | Mirror every incident update |
-| Out | Telegram (on-call channel) | Major outages only |
-| Out | Email subscribers (Resend) | User-facing notifications |
-| Out | Atom/RSS feed at `/feed.atom` | Public consumption |
-| Out | REST API at `/api/components`, `/api/incidents` | Programmatic access (e.g. embed status indicators in harbour.space + student-space) |
-| In | `POST /api/webhooks/incident` | External monitoring (UptimeRobot / Better Stack) can also push incidents — useful as a backup signal to our in-process probe loop |
+The "different regions" requirement is what makes single-agent network problems a non-issue. We never trust a single agent.
+
+When the consensus says a component went from Operational → Partial / Major and there's no open incident for it, we auto-create one in `Investigating`. On recovery we post a `Monitoring` update on the open auto-incident; humans confirm `Resolved`.
+
+## Failure isolation (still the hard constraint)
+
+- Status Page on Railway, agents on Railway + at least 2 internal servers in different regions
+- Status Page Postgres is Railway-managed, separate from any harbour.space production DB
+- Email through Resend (separate from primary transactional)
+- If the Status Page itself goes down: agents keep retrying with backoff; once it returns they catch up. Fall back to Twitter/X for user comms while the page is unreachable.
+
+## Why one process per service (not docker-compose)
+
+Per the boss: each service ships as its own Dockerfile, one process, one image. The Status Page is one container; each Uptime Agent is one container. Production has no docker-compose anywhere — every service is deployable as a standalone container to Railway or any internal Docker host.
+
+## Migration path: out-of-process scheduling
+
+If we ever want to move probe scheduling out of node-cron into Railway Cron Jobs, the agent's design supports it: replace the cron loop with an HTTP-triggered single-pass mode behind a shared secret, and have Railway Cron call it. Not on the roadmap; documented in case.
