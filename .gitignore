@@ -31,3 +31,8 @@ docker-compose.override.yaml
 /public/build/
 /public/hot
 /node_modules/
+
+# Node apps
+apps/*/node_modules/
+apps/*/build/
+apps/*/dist/

@@ -1,0 +1,15 @@
+{
+  "name": "status-page",
+  "version": "0.0.1-placeholder",
+  "private": true,
+  "description": "Phase 1 placeholder — replaced in Phase 2 with the React Router 7 app.",
+  "type": "module",
+  "scripts": {
+    "build": "node -e \"require('node:fs').mkdirSync('build',{recursive:true})\"",
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
