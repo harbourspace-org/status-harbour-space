@@ -1,18 +1,25 @@
 {
   "name": "uptime-monitor",
-  "version": "0.0.1-placeholder",
+  "version": "0.1.0",
   "private": true,
-  "description": "Phase 1 placeholder — replaced in Phase 2 with the real probe loop.",
+  "description": "Lightweight Harbour.Space uptime monitor agent. Probes components and reports to the central Status Page from multiple zones.",
   "type": "module",
   "scripts": {
-    "build": "node -e \"const f=require('node:fs');f.mkdirSync('dist',{recursive:true});f.copyFileSync('src/index.js','dist/index.js');\"",
+    "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "node src/index.js"
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
   }
 }
