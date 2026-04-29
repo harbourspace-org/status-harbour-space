@@ -1,20 +1,32 @@
+import { useMemo } from 'react';
+import { I18nextProvider } from 'react-i18next';
 import {
   Links,
   Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
+  useRouteLoaderData,
 } from 'react-router';
 
 import './app.css';
+import type { Route } from './+types/root';
+import { detectLang } from './i18n/detect.server';
+import { DEFAULT_LANG, type Lang, createI18n } from './i18n';
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const lang = await detectLang(request);
+  return { lang };
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const data = useRouteLoaderData<typeof loader>('root');
+  const lang: Lang = data?.lang ?? DEFAULT_LANG;
   return (
-    <html lang="en">
+    <html lang={lang}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Harbour.Space — Status</title>
         <Meta />
         <Links />
       </head>
@@ -28,5 +40,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  const data = useRouteLoaderData<typeof loader>('root');
+  const lang: Lang = data?.lang ?? DEFAULT_LANG;
+  const i18n = useMemo(() => createI18n(lang), [lang]);
+  return (
+    <I18nextProvider i18n={i18n}>
+      <Outlet />
+    </I18nextProvider>
+  );
 }

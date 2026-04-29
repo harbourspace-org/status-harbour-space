@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "title": "Harbour.Space — Estado",
+    "description": "Estado en tiempo real de los servicios de harbour.space y productos relacionados."
+  },
+  "header": {
+    "title": "Estado de Harbour.Space"
+  },
+  "footer": {
+    "updated": "Actualizado {{relative}}",
+    "tagline": "Monitorización por consenso multizona"
+  },
+  "language": {
+    "english": "Inglés",
+    "spanish": "Español",
+    "switchLabel": "Idioma"
+  },
+  "status": {
+    "operational": "Operativo",
+    "performance_issues": "Problemas de rendimiento",
+    "partial_outage": "Caída parcial",
+    "major_outage": "Caída total",
+    "under_maintenance": "En mantenimiento",
+    "no_data": "Sin datos"
+  },
+  "overall": {
+    "operational": "Todos los sistemas operativos",
+    "performance_issues": "Algunos servicios presentan problemas de rendimiento",
+    "partial_outage": "Caída parcial en curso",
+    "major_outage": "Caída total en curso",
+    "under_maintenance": "Mantenimiento en curso",
+    "no_data": "A la espera de los primeros datos de monitorización"
+  },
+  "incidentStatus": {
+    "investigating": "Investigando",
+    "identified": "Identificado",
+    "monitoring": "Monitorizando",
+    "resolved": "Resuelto"
+  },
+  "sections": {
+    "activeIncidents": "Incidentes activos",
+    "scheduledMaintenance": "Mantenimientos programados",
+    "components": "Componentes",
+    "recentIncidents": "Incidentes recientes",
+    "other": "Otros"
+  },
+  "incident": {
+    "started": "Inicio {{date}}",
+    "resolvedAt": "Resuelto {{date}}",
+    "affects": "{{components}}"
+  },
+  "schedule": {
+    "inProgress": "En curso",
+    "affects": "Afecta a: {{components}}"
+  },
+  "uptime": {
+    "label90d": "90d {{value}}",
+    "noData": "—"
+  },
+  "monitoring": {
+    "neverReported": "Los agentes de monitorización todavía no han empezado a reportar. Los estados de los componentes son provisionales hasta que llegue el primer heartbeat.",
+    "stale": "La monitorización está caída — último heartbeat de un agente {{relative}}. Los estados de los componentes no se actualizan hasta restablecer la conexión."
+  },
+  "relative": {
+    "never": "nunca",
+    "secondsAgo": "hace {{count}}s",
+    "minutesAgo_one": "hace {{count}} min",
+    "minutesAgo_other": "hace {{count}} min",
+    "hoursAgo_one": "hace {{count}}h",
+    "hoursAgo_other": "hace {{count}}h",
+    "daysAgo_one": "hace {{count}}d",
+    "daysAgo_other": "hace {{count}}d"
+  }
+}
