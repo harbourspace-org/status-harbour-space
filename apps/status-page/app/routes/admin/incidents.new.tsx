@@ -1,4 +1,4 @@
-import { asc } from 'drizzle-orm';
+import { asc, inArray } from 'drizzle-orm';
 import {
   Form,
   Link,
@@ -21,6 +21,7 @@ import {
   incidentUpdates,
   incidents,
 } from '../../db/schema';
+import { notifyIncident } from '../../notifications.server';
 import type { Route } from './+types/incidents.new';
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -93,6 +94,24 @@ export async function action({ request }: Route.ActionArgs) {
     });
 
     return created.id;
+  });
+
+  const linkedComponents =
+    componentIds.length > 0
+      ? await db
+          .select({ name: componentsTable.name })
+          .from(componentsTable)
+          .where(inArray(componentsTable.id, componentIds))
+      : [];
+
+  await notifyIncident({
+    kind: 'opened',
+    incidentId: newId,
+    title,
+    severity,
+    status,
+    message,
+    componentNames: linkedComponents.map((c) => c.name),
   });
 
   throw redirect(`/admin/incidents/${newId}`);

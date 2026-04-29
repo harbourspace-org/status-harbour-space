@@ -22,6 +22,7 @@ import {
   incidentUpdates,
   incidents,
 } from '../../db/schema';
+import { notifyIncident } from '../../notifications.server';
 import type { Route } from './+types/incidents.$id';
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -134,6 +135,32 @@ export async function action({ params, request }: Route.ActionArgs) {
         })
         .where(eq(incidents.id, id));
     });
+
+    const [incidentRow] = await db
+      .select({ title: incidents.title, severity: incidents.severity })
+      .from(incidents)
+      .where(eq(incidents.id, id))
+      .limit(1);
+    if (incidentRow) {
+      const linkedRows = await db
+        .select({ name: componentsTable.name })
+        .from(incidentComponents)
+        .innerJoin(
+          componentsTable,
+          eq(incidentComponents.componentId, componentsTable.id),
+        )
+        .where(eq(incidentComponents.incidentId, id));
+      await notifyIncident({
+        kind: 'update',
+        incidentId: id,
+        title: incidentRow.title,
+        severity: incidentRow.severity,
+        status,
+        message,
+        componentNames: linkedRows.map((r) => r.name),
+      });
+    }
+
     throw redirect(`/admin/incidents/${id}`);
   }
 
