@@ -4,7 +4,9 @@
     "description": "Estado en tiempo real de los servicios de harbour.space y productos relacionados."
   },
   "header": {
-    "title": "Estado de Harbour.Space"
+    "title": "Estado de Harbour.Space",
+    "suffix": "Estado",
+    "logoAlt": "Harbour.Space"
   },
   "footer": {
     "updated": "Actualizado {{relative}}",

@@ -325,7 +325,7 @@ function LanguageSwitcher() {
             aria-current={current === lng ? 'true' : undefined}
             className={
               current === lng
-                ? 'font-semibold text-slate-700 dark:text-slate-200'
+                ? 'font-semibold text-brand dark:text-brand'
                 : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
             }
           >
@@ -352,12 +352,31 @@ export default function Index() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {t('header.title')}
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <img
+            src="/logo.svg"
+            alt={t('header.logoAlt')}
+            width={270}
+            height={26}
+            className="h-5 w-auto sm:h-6 dark:hidden"
+          />
+          <img
+            src="/logo-white.svg"
+            alt=""
+            aria-hidden="true"
+            width={270}
+            height={26}
+            className="hidden h-5 w-auto sm:h-6 dark:block"
+          />
+          <span className="text-slate-700 dark:text-slate-200">
+            {t('header.suffix')}
+          </span>
         </h1>
         <div className="flex items-center gap-4">
           <LanguageSwitcher />
-          <span className="text-xs text-slate-400">status.harbour.space</span>
+          <span className="hidden text-xs text-slate-400 sm:inline">
+            status.harbour.space
+          </span>
         </div>
       </header>
 
