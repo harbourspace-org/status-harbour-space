@@ -11,6 +11,7 @@
     "typecheck": "react-router typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio"
   },
   "engines": {
@@ -35,6 +36,7 @@
     "@types/react-dom": "^18.3.0",
     "drizzle-kit": "^0.28.0",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
     "vite-tsconfig-paths": "^5.1.0"
