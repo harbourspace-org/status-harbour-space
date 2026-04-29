@@ -22,12 +22,9 @@ app.use('*', async (c, next) => {
 
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
 
-// Internal endpoints called by uptime-monitor agents. Bodies are stubs
-// for now; HSDEV-612 sub-tasks 3-7 wire them to Drizzle + the consensus
-// engine + the notification webhooks.
-app.get('/api/internal/components', (c) => c.json({ components: [] }));
-app.post('/api/internal/probes', (c) => c.json({ accepted: 0 }, 202));
-app.post('/api/internal/heartbeat', (c) => c.json({ ok: true }));
+// /api/internal/{components,heartbeat,probes} are now React Router
+// routes (HMAC-protected) and reach reactRouterHandler via the
+// catch-all below.
 
 // Static assets emitted by the React Router client build (hashed JS/CSS in
 // /assets/*, plus anything dropped into apps/status-page/public — favicon,

@@ -64,7 +64,9 @@ function sign(body: string): string {
 
 async function refreshComponents(): Promise<void> {
   try {
-    const res = await fetch(`${env.STATUS_PAGE_URL}/api/internal/components`);
+    const res = await fetch(`${env.STATUS_PAGE_URL}/api/internal/components`, {
+      headers: { 'x-agent-auth': env.AGENT_SHARED_SECRET },
+    });
     if (!res.ok) {
       log('refresh-components failed', { status: res.status });
       return;
