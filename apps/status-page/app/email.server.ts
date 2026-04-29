@@ -8,7 +8,8 @@ type SendArgs = {
 };
 
 function getFrom(): string {
-  const address = process.env.MAIL_FROM ?? 'status@harbour.space';
+  const address =
+    process.env.MAIL_FROM_ADDRESS ?? 'status@status.harbour.space';
   const name = process.env.MAIL_FROM_NAME ?? 'Harbour.Space Status';
   return `${name} <${address}>`;
 }
