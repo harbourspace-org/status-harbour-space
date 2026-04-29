@@ -62,6 +62,9 @@ export default function AdminLayout() {
             <div className="mx-auto flex max-w-5xl gap-6 px-6 text-sm">
               <NavTab to="/admin" end label="Overview" />
               <NavTab to="/admin/components" label="Components" />
+              <NavTab to="/admin/incidents" label="Incidents" />
+              <NavTab to="/admin/schedules" label="Maintenance" />
+              <NavTab to="/admin/agents" label="Agents" />
             </div>
           </nav>
         )}
