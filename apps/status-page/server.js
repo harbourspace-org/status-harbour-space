@@ -1,44 +1,41 @@
-import { createServer } from 'node:http';
+import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { Hono } from 'hono';
+import { createRequestHandler } from 'react-router';
 
 const PORT = Number(process.env.PORT) || 3000;
-
-const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Harbour.Space — Status</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: -apple-system, system-ui, sans-serif; max-width: 640px; margin: 12vh auto; padding: 0 1.5rem; line-height: 1.55; }
-    h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
-    p { margin: .25rem 0; opacity: .85; }
-    .dot { display:inline-block; width:.55rem; height:.55rem; background:#3aa55d; border-radius:50%; margin-right:.5rem; vertical-align:middle; }
-  </style>
-</head>
-<body>
-  <h1><span class="dot"></span>Harbour.Space Status</h1>
-  <p>Status page is being prepared. Real-time monitoring coming soon.</p>
-  <p style="margin-top:1.5rem;font-size:.85rem;opacity:.6;">status.harbour.space · placeholder</p>
-</body>
-</html>
-`;
-
-// Scoped to status.harbour.space only — set in the app, not Cloudflare zone,
-// so it does not affect sibling subdomains like student/lms/apply.
 const HSTS = 'max-age=31536000; includeSubDomains; preload';
 
-const server = createServer((req, res) => {
-  res.setHeader('strict-transport-security', HSTS);
-  if (req.url === '/api/health') {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', placeholder: true }));
-    return;
-  }
-  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  res.end(html);
+// React Router 7 framework-mode build output.
+const build = await import('./build/server/index.js');
+const reactRouterHandler = createRequestHandler(
+  build,
+  process.env.NODE_ENV ?? 'production',
+);
+
+const app = new Hono();
+
+app.use('*', async (c, next) => {
+  await next();
+  c.header('strict-transport-security', HSTS);
 });
 
-server.listen(PORT, () => {
-  console.log(`status-page placeholder listening on :${PORT}`);
+app.get('/api/health', (c) => c.json({ status: 'ok' }));
+
+// Internal endpoints called by uptime-monitor agents. Bodies are stubs
+// for now; HSDEV-612 sub-tasks 3-7 wire them to Drizzle + the consensus
+// engine + the notification webhooks.
+app.get('/api/internal/components', (c) => c.json({ components: [] }));
+app.post('/api/internal/probes', (c) => c.json({ accepted: 0 }, 202));
+app.post('/api/internal/heartbeat', (c) => c.json({ ok: true }));
+
+// Static assets emitted by the React Router client build.
+app.use('/assets/*', serveStatic({ root: './build/client' }));
+app.use('/favicon.ico', serveStatic({ path: './build/client/favicon.ico' }));
+
+// Everything else falls through to React Router (server-rendered routes).
+app.all('*', (c) => reactRouterHandler(c.req.raw));
+
+serve({ fetch: app.fetch, port: PORT }, (info) => {
+  console.log(`status-page listening on :${info.port}`);
 });
