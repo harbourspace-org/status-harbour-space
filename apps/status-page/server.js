@@ -29,9 +29,11 @@ app.get('/api/internal/components', (c) => c.json({ components: [] }));
 app.post('/api/internal/probes', (c) => c.json({ accepted: 0 }, 202));
 app.post('/api/internal/heartbeat', (c) => c.json({ ok: true }));
 
-// Static assets emitted by the React Router client build.
-app.use('/assets/*', serveStatic({ root: './build/client' }));
-app.use('/favicon.ico', serveStatic({ path: './build/client/favicon.ico' }));
+// Static assets emitted by the React Router client build (hashed JS/CSS in
+// /assets/*, plus anything dropped into apps/status-page/public — favicon,
+// logos, etc.). serveStatic falls through on miss so unknown paths still
+// reach the React Router handler below.
+app.use('/*', serveStatic({ root: './build/client' }));
 
 // Everything else falls through to React Router (server-rendered routes).
 app.all('*', (c) => reactRouterHandler(c.req.raw));
