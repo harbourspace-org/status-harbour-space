@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "title": "Harbour.Space — Status",
+    "description": "Real-time service status for harbour.space and related products."
+  },
+  "header": {
+    "title": "Harbour.Space Status"
+  },
+  "footer": {
+    "updated": "Updated {{relative}}",
+    "tagline": "Multi-zone consensus monitoring"
+  },
+  "language": {
+    "english": "English",
+    "spanish": "Spanish",
+    "switchLabel": "Language"
+  },
+  "status": {
+    "operational": "Operational",
+    "performance_issues": "Performance issues",
+    "partial_outage": "Partial outage",
+    "major_outage": "Major outage",
+    "under_maintenance": "Under maintenance",
+    "no_data": "No data"
+  },
+  "overall": {
+    "operational": "All systems operational",
+    "performance_issues": "Some services are seeing performance issues",
+    "partial_outage": "Partial outage in progress",
+    "major_outage": "Major outage in progress",
+    "under_maintenance": "Maintenance in progress",
+    "no_data": "Awaiting first probe data"
+  },
+  "incidentStatus": {
+    "investigating": "Investigating",
+    "identified": "Identified",
+    "monitoring": "Monitoring",
+    "resolved": "Resolved"
+  },
+  "sections": {
+    "activeIncidents": "Active incidents",
+    "scheduledMaintenance": "Scheduled maintenance",
+    "components": "Components",
+    "recentIncidents": "Recent incidents",
+    "other": "Other"
+  },
+  "incident": {
+    "started": "Started {{date}}",
+    "resolvedAt": "Resolved {{date}}",
+    "affects": "{{components}}"
+  },
+  "schedule": {
+    "inProgress": "In progress",
+    "affects": "Affects: {{components}}"
+  },
+  "uptime": {
+    "label90d": "90d {{value}}",
+    "noData": "—"
+  },
+  "monitoring": {
+    "neverReported": "Monitoring agents have not started reporting yet. Component statuses below are placeholders until the first heartbeat arrives.",
+    "stale": "Monitoring is offline — last agent heartbeat {{relative}}. Component statuses are not being updated until contact is restored."
+  },
+  "relative": {
+    "never": "never",
+    "secondsAgo": "{{count}}s ago",
+    "minutesAgo_one": "{{count}} min ago",
+    "minutesAgo_other": "{{count}} min ago",
+    "hoursAgo_one": "{{count}}h ago",
+    "hoursAgo_other": "{{count}}h ago",
+    "daysAgo_one": "{{count}}d ago",
+    "daysAgo_other": "{{count}}d ago"
+  }
+}

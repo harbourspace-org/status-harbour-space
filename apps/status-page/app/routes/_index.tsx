@@ -1,5 +1,6 @@
 import { and, asc, desc, gte, inArray, isNull, or, sql } from 'drizzle-orm';
-import { useLoaderData } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { Form, useLoaderData, useLocation } from 'react-router';
 
 import { db } from '../db/client';
 import {
@@ -18,15 +19,24 @@ import {
   getMonitoringHealth,
   worstStatus,
 } from '../db/status';
+import { SUPPORTED_LANGS, type Lang } from '../i18n';
 
-export function meta() {
+export function meta({
+  matches,
+}: {
+  matches: Array<{ id: string; data: unknown }>;
+}) {
+  const rootMatch = matches.find((m) => m.id === 'root');
+  const lang = (rootMatch?.data as { lang?: Lang } | undefined)?.lang ?? 'en';
+  const title =
+    lang === 'es' ? 'Harbour.Space — Estado' : 'Harbour.Space — Status';
+  const description =
+    lang === 'es'
+      ? 'Estado en tiempo real de los servicios de harbour.space y productos relacionados.'
+      : 'Real-time service status for harbour.space and related products.';
   return [
-    { title: 'Harbour.Space — Status' },
-    {
-      name: 'description',
-      content:
-        'Real-time service status for harbour.space and related products.',
-    },
+    { title },
+    { name: 'description', content: description },
   ];
 }
 
@@ -202,15 +212,6 @@ export async function loader() {
   };
 }
 
-const STATUS_LABEL: Record<DerivedStatus, string> = {
-  operational: 'Operational',
-  performance_issues: 'Performance issues',
-  partial_outage: 'Partial outage',
-  major_outage: 'Major outage',
-  under_maintenance: 'Under maintenance',
-  no_data: 'No data',
-};
-
 const STATUS_DOT: Record<DerivedStatus, string> = {
   operational: 'bg-emerald-500',
   performance_issues: 'bg-amber-500',
@@ -229,22 +230,6 @@ const STATUS_BAR: Record<DerivedStatus, string> = {
   no_data: 'bg-slate-50 text-slate-700 border-slate-200',
 };
 
-const OVERALL_HEADLINE: Record<DerivedStatus, string> = {
-  operational: 'All systems operational',
-  performance_issues: 'Some services are seeing performance issues',
-  partial_outage: 'Partial outage in progress',
-  major_outage: 'Major outage in progress',
-  under_maintenance: 'Maintenance in progress',
-  no_data: 'Awaiting first probe data',
-};
-
-const INCIDENT_STATUS_LABEL: Record<string, string> = {
-  investigating: 'Investigating',
-  identified: 'Identified',
-  monitoring: 'Monitoring',
-  resolved: 'Resolved',
-};
-
 function StatusDot({ status }: { status: DerivedStatus }) {
   return (
     <span
@@ -259,13 +244,14 @@ function MonitoringBanner({
 }: {
   monitoring: { health: 'online' | 'stale' | 'never'; lastSeenAt: Date | null };
 }) {
+  const { t, i18n } = useTranslation();
   if (monitoring.health === 'online') return null;
   const label =
     monitoring.health === 'never'
-      ? 'Monitoring agents have not started reporting yet. Component statuses below are placeholders until the first heartbeat arrives.'
-      : `Monitoring is offline — last agent heartbeat ${formatRelative(
-          monitoring.lastSeenAt,
-        )}. Component statuses are not being updated until contact is restored.`;
+      ? t('monitoring.neverReported')
+      : t('monitoring.stale', {
+          relative: formatRelative(monitoring.lastSeenAt, i18n.language, t),
+        });
   const tone =
     monitoring.health === 'never'
       ? 'border-slate-200 bg-slate-50 text-slate-700'
@@ -280,22 +266,28 @@ function MonitoringBanner({
   );
 }
 
-function formatRelative(date: Date | string | null): string {
-  if (!date) return 'never';
+type TFn = ReturnType<typeof useTranslation>['t'];
+
+function formatRelative(
+  date: Date | string | null,
+  _lng: string,
+  t: TFn,
+): string {
+  if (!date) return t('relative.never');
   const d = typeof date === 'string' ? new Date(date) : date;
   const seconds = Math.round((Date.now() - d.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 60) return t('relative.secondsAgo', { count: seconds });
   const mins = Math.round(seconds / 60);
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 60) return t('relative.minutesAgo', { count: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('relative.hoursAgo', { count: hours });
   const days = Math.round(hours / 24);
-  return `${days}d ago`;
+  return t('relative.daysAgo', { count: days });
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, lng: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(lng, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -303,15 +295,53 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatUptime(value: number | null): string {
-  if (value === null) return '—';
+function formatUptime(value: number | null, none: string): string {
+  if (value === null) return none;
   const pct = value * 100;
   if (pct >= 99.99) return '99.99%';
   return `${pct.toFixed(2)}%`;
 }
 
+function LanguageSwitcher() {
+  const { t, i18n } = useTranslation();
+  const location = useLocation();
+  const current = (
+    SUPPORTED_LANGS as readonly string[]
+  ).includes(i18n.language)
+    ? (i18n.language as Lang)
+    : 'en';
+  const redirectTo = `${location.pathname}${location.search}`;
+  return (
+    <Form method="post" action="/set-lang" className="flex items-center gap-1 text-xs">
+      <span className="sr-only">{t('language.switchLabel')}</span>
+      <input type="hidden" name="redirectTo" value={redirectTo} />
+      {SUPPORTED_LANGS.map((lng, idx) => (
+        <span key={lng} className="contents">
+          {idx > 0 && <span className="text-slate-300">|</span>}
+          <button
+            type="submit"
+            name="lang"
+            value={lng}
+            aria-current={current === lng ? 'true' : undefined}
+            className={
+              current === lng
+                ? 'font-semibold text-slate-700 dark:text-slate-200'
+                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+            }
+          >
+            {lng.toUpperCase()}
+          </button>
+        </span>
+      ))}
+    </Form>
+  );
+}
+
 export default function Index() {
   const data = useLoaderData<typeof loader>();
+  const { t, i18n } = useTranslation();
+  const lng = i18n.language;
+  const noneLabel = t('uptime.noData');
   const activeIncidents = data.incidents.filter(
     (i) => i.currentStatus !== 'resolved',
   );
@@ -321,11 +351,14 @@ export default function Index() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">
-          Harbour.Space Status
+          {t('header.title')}
         </h1>
-        <span className="text-xs text-slate-400">status.harbour.space</span>
+        <div className="flex items-center gap-4">
+          <LanguageSwitcher />
+          <span className="text-xs text-slate-400">status.harbour.space</span>
+        </div>
       </header>
 
       <MonitoringBanner monitoring={data.monitoring} />
@@ -336,7 +369,7 @@ export default function Index() {
         <div className="flex items-center gap-3">
           <StatusDot status={data.overall} />
           <p className="text-base font-medium">
-            {OVERALL_HEADLINE[data.overall]}
+            {t(`overall.${data.overall}`)}
           </p>
         </div>
       </section>
@@ -344,7 +377,7 @@ export default function Index() {
       {activeIncidents.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Active incidents
+            {t('sections.activeIncidents')}
           </h2>
           <ul className="space-y-3">
             {activeIncidents.map((i) => (
@@ -357,7 +390,7 @@ export default function Index() {
       {data.schedules.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Scheduled maintenance
+            {t('sections.scheduledMaintenance')}
           </h2>
           <ul className="space-y-3">
             {data.schedules.map((s) => (
@@ -369,16 +402,19 @@ export default function Index() {
                   <p className="font-medium">{s.title}</p>
                   {s.inProgress && (
                     <span className="rounded-full bg-sky-200 px-2 py-0.5 text-xs font-medium text-sky-900">
-                      In progress
+                      {t('schedule.inProgress')}
                     </span>
                   )}
                 </div>
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                  {formatDate(s.scheduledStart)} → {formatDate(s.scheduledEnd)}
+                  {formatDate(s.scheduledStart, lng)} →{' '}
+                  {formatDate(s.scheduledEnd, lng)}
                 </p>
                 {s.componentNames.length > 0 && (
                   <p className="mt-1 text-xs text-slate-500">
-                    Affects: {s.componentNames.join(', ')}
+                    {t('schedule.affects', {
+                      components: s.componentNames.join(', '),
+                    })}
                   </p>
                 )}
                 {s.description && (
@@ -394,16 +430,25 @@ export default function Index() {
 
       <section className="mb-10">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Components
+          {t('sections.components')}
         </h2>
         <div className="space-y-6">
           {data.groups.map((g) =>
             g.components.length === 0 ? null : (
-              <ComponentGroup key={g.id} name={g.name} components={g.components} />
+              <ComponentGroup
+                key={g.id}
+                name={g.name}
+                components={g.components}
+                noneLabel={noneLabel}
+              />
             ),
           )}
           {data.ungrouped.length > 0 && (
-            <ComponentGroup name="Other" components={data.ungrouped} />
+            <ComponentGroup
+              name={t('sections.other')}
+              components={data.ungrouped}
+              noneLabel={noneLabel}
+            />
           )}
         </div>
       </section>
@@ -411,7 +456,7 @@ export default function Index() {
       {recentIncidents.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Recent incidents
+            {t('sections.recentIncidents')}
           </h2>
           <ul className="space-y-3">
             {recentIncidents.map((i) => (
@@ -422,8 +467,10 @@ export default function Index() {
       )}
 
       <footer className="mt-12 text-xs text-slate-400">
-        Updated {formatRelative(data.generatedAt)} · Multi-zone consensus
-        monitoring
+        {t('footer.updated', {
+          relative: formatRelative(data.generatedAt, lng, t),
+        })}{' '}
+        · {t('footer.tagline')}
       </footer>
     </main>
   );
@@ -432,6 +479,7 @@ export default function Index() {
 function ComponentGroup({
   name,
   components: list,
+  noneLabel,
 }: {
   name: string;
   components: Array<{
@@ -441,7 +489,9 @@ function ComponentGroup({
     status: DerivedStatus;
     uptime90: number | null;
   }>;
+  noneLabel: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
       <h3 className="mb-2 text-base font-semibold">{name}</h3>
@@ -464,10 +514,12 @@ function ComponentGroup({
             </div>
             <div className="flex shrink-0 items-center gap-3 text-xs">
               <span className="hidden text-slate-400 sm:inline">
-                90d {formatUptime(c.uptime90)}
+                {t('uptime.label90d', {
+                  value: formatUptime(c.uptime90, noneLabel),
+                })}
               </span>
               <span className="text-slate-700 dark:text-slate-300">
-                {STATUS_LABEL[c.status]}
+                {t(`status.${c.status}`)}
               </span>
             </div>
           </li>
@@ -495,22 +547,29 @@ type IncidentEntry = {
 };
 
 function IncidentCard({ incident }: { incident: IncidentEntry }) {
+  const { t, i18n } = useTranslation();
+  const lng = i18n.language;
+  const statusKey = `incidentStatus.${incident.currentStatus}`;
+  const statusLabel = t(statusKey, { defaultValue: incident.currentStatus });
   return (
     <li className="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-medium">{incident.title}</p>
           <p className="mt-0.5 text-xs text-slate-500">
-            Started {formatDate(incident.startedAt)}
+            {t('incident.started', {
+              date: formatDate(incident.startedAt, lng),
+            })}
             {incident.resolvedAt &&
-              ` · Resolved ${formatDate(incident.resolvedAt)}`}
+              ` · ${t('incident.resolvedAt', {
+                date: formatDate(incident.resolvedAt, lng),
+              })}`}
             {incident.componentNames.length > 0 &&
               ` · ${incident.componentNames.join(', ')}`}
           </p>
         </div>
         <span className="shrink-0 rounded-full border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-300">
-          {INCIDENT_STATUS_LABEL[incident.currentStatus] ??
-            incident.currentStatus}
+          {statusLabel}
         </span>
       </div>
       {incident.updates.length > 0 && (
@@ -518,8 +577,8 @@ function IncidentCard({ incident }: { incident: IncidentEntry }) {
           {incident.updates.map((u) => (
             <li key={u.id} className="text-sm">
               <p className="text-xs font-medium text-slate-500">
-                {INCIDENT_STATUS_LABEL[u.status] ?? u.status} ·{' '}
-                {formatDate(u.postedAt)}
+                {t(`incidentStatus.${u.status}`, { defaultValue: u.status })}{' '}
+                · {formatDate(u.postedAt, lng)}
               </p>
               <p className="text-slate-700 dark:text-slate-300">{u.message}</p>
             </li>
