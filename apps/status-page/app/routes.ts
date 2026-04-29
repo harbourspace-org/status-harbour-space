@@ -10,5 +10,12 @@ export default [
     route('components', 'routes/admin/components._index.tsx'),
     route('components/new', 'routes/admin/components.new.tsx'),
     route('components/:id', 'routes/admin/components.$id.tsx'),
+    route('incidents', 'routes/admin/incidents._index.tsx'),
+    route('incidents/new', 'routes/admin/incidents.new.tsx'),
+    route('incidents/:id', 'routes/admin/incidents.$id.tsx'),
+    route('schedules', 'routes/admin/schedules._index.tsx'),
+    route('schedules/new', 'routes/admin/schedules.new.tsx'),
+    route('schedules/:id', 'routes/admin/schedules.$id.tsx'),
+    route('agents', 'routes/admin/agents.tsx'),
   ]),
 ] satisfies RouteConfig;
