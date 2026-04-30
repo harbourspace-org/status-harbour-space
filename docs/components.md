@@ -7,7 +7,7 @@ Current scope: the four URLs Mayda actually wants to track on `status.harbour.sp
 | Component | URL | Probe | Severity if down |
 |-----------|-----|-------|------------------|
 | Marketing website | https://harbour.space | HTTP 200 on `/` | Major |
-| Student Space | https://student.harbour.space | HTTP 200 on `/login` | Major |
+| Student Space | https://student.harbour.space | HTTP 200 on `/` | Major |
 
 ## Internal services
 

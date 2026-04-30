@@ -45,7 +45,7 @@ const seedComponents: SeedComponent[] = [
     slug: 'student-space',
     name: 'Student Space',
     group: 'Student-facing services',
-    probeUrl: 'https://student.harbour.space/login',
+    probeUrl: 'https://student.harbour.space/',
     severityWhenDown: 'major_outage',
     description: 'student.harbour.space',
     sortOrder: 2,
