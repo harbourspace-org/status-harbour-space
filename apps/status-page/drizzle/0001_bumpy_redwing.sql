@@ -1,0 +1,1 @@
+ALTER TABLE "components" ADD COLUMN "expected_body_substring" text;

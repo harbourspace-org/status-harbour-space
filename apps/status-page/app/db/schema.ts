@@ -50,6 +50,10 @@ export const components = pgTable('components', {
   description: text('description'),
   probeUrl: text('probe_url').notNull(),
   expectedStatus: integer('expected_status').notNull().default(200),
+  // Optional case-insensitive substring that must appear in the response
+  // body for the probe to count as ok. Catches the "200 but blank/error
+  // page" class of false negatives. Null = body not checked.
+  expectedBodySubstring: text('expected_body_substring'),
   severityWhenDown: componentStatus('severity_when_down')
     .notNull()
     .default('major_outage'),

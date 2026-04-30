@@ -17,6 +17,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       slug: components.slug,
       probe_url: components.probeUrl,
       expected_status: components.expectedStatus,
+      expected_body_substring: components.expectedBodySubstring,
     })
     .from(components)
     .where(eq(components.isExternal, false))

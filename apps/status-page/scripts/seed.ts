@@ -26,6 +26,7 @@ type SeedComponent = {
   group: GroupName;
   probeUrl: string;
   expectedStatus?: number;
+  expectedBodySubstring?: string;
   severityWhenDown: 'partial_outage' | 'major_outage' | 'performance_issues';
   description?: string;
   sortOrder: number;
@@ -37,6 +38,10 @@ const seedComponents: SeedComponent[] = [
     name: 'Marketing website',
     group: 'Student-facing services',
     probeUrl: 'https://harbour.space/',
+    // The marketing site renders the brand name in the header; if a 200
+    // comes back without it, the page is blank/broken even though the
+    // status code says ok.
+    expectedBodySubstring: 'Harbour.Space',
     severityWhenDown: 'major_outage',
     description: 'harbour.space',
     sortOrder: 1,
@@ -105,6 +110,7 @@ async function main(): Promise<void> {
       groupId: groupIds[c.group],
       probeUrl: c.probeUrl,
       expectedStatus: c.expectedStatus ?? 200,
+      expectedBodySubstring: c.expectedBodySubstring,
       severityWhenDown: c.severityWhenDown,
       description: c.description,
       sortOrder: c.sortOrder,

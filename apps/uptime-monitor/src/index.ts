@@ -37,7 +37,10 @@ type Component = {
   slug: string;
   probe_url: string;
   expected_status: number;
+  expected_body_substring: string | null;
 };
+
+const BODY_READ_LIMIT = 256 * 1024;
 
 type ProbeResult = {
   component_id: string;
@@ -89,7 +92,17 @@ async function probeOne(c: Component): Promise<ProbeResult> {
   try {
     const res = await fetch(c.probe_url, { signal: ac.signal, redirect: 'follow' });
     statusCode = res.status;
-    ok = res.status === c.expected_status;
+    const statusOk = res.status === c.expected_status;
+    if (!statusOk) {
+      ok = false;
+    } else if (c.expected_body_substring) {
+      const body = await readBodyCapped(res, BODY_READ_LIMIT, ac.signal);
+      const needle = c.expected_body_substring.toLowerCase();
+      ok = body.toLowerCase().includes(needle);
+      if (!ok) error = `body did not contain expected substring`;
+    } else {
+      ok = true;
+    }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   } finally {
@@ -103,6 +116,38 @@ async function probeOne(c: Component): Promise<ProbeResult> {
     observed_at: new Date().toISOString(),
     ...(error ? { error } : {}),
   };
+}
+
+async function readBodyCapped(
+  res: Response,
+  cap: number,
+  signal: AbortSignal,
+): Promise<string> {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < cap) {
+      if (signal.aborted) break;
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* ignore */ }
+  }
+  const merged = new Uint8Array(Math.min(total, cap));
+  let offset = 0;
+  for (const chunk of chunks) {
+    const slice = chunk.subarray(0, Math.min(chunk.byteLength, cap - offset));
+    merged.set(slice, offset);
+    offset += slice.byteLength;
+    if (offset >= cap) break;
+  }
+  return new TextDecoder('utf-8', { fatal: false }).decode(merged);
 }
 
 async function runProbeCycle(): Promise<void> {
