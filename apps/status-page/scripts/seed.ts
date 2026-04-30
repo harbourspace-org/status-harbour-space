@@ -16,8 +16,6 @@ const db = drizzle(client);
 const groupNames = [
   'Student-facing services',
   'Internal services',
-  'Email & notifications',
-  'Third-party dependencies',
 ] as const;
 
 type GroupName = (typeof groupNames)[number];
@@ -33,9 +31,6 @@ type SeedComponent = {
   sortOrder: number;
 };
 
-// HTTP-probable components from docs/components.md. Non-HTTP probes
-// (SMTP TCP, file-storage HEAD, third-party providers) land in a
-// follow-up once the agent supports specialised probe types.
 const seedComponents: SeedComponent[] = [
   {
     slug: 'marketing-website',
@@ -56,39 +51,12 @@ const seedComponents: SeedComponent[] = [
     sortOrder: 2,
   },
   {
-    slug: 'lms',
-    name: 'LMS',
-    group: 'Student-facing services',
-    probeUrl: 'https://lms.harbour.space/',
-    severityWhenDown: 'major_outage',
-    description: 'lms.harbour.space',
-    sortOrder: 3,
-  },
-  {
-    slug: 'admissions-portal',
-    name: 'Admissions portal',
-    group: 'Student-facing services',
-    probeUrl: 'https://apply.harbour.space/',
-    severityWhenDown: 'major_outage',
-    description: 'apply.harbour.space',
-    sortOrder: 4,
-  },
-  {
-    slug: 'auth-sso',
-    name: 'Authentication / SSO',
-    group: 'Student-facing services',
-    probeUrl: 'https://auth.harbour.space/.well-known/openid-configuration',
-    severityWhenDown: 'major_outage',
-    description: 'auth.harbour.space',
-    sortOrder: 5,
-  },
-  {
-    slug: 'api-gateway',
-    name: 'API gateway',
+    slug: 'student-admin',
+    name: 'Student admin',
     group: 'Internal services',
-    probeUrl: 'https://api.harbour.space/health',
+    probeUrl: 'https://student-admin.harbour.space/admin/login',
     severityWhenDown: 'partial_outage',
-    description: 'api.harbour.space',
+    description: 'student-admin.harbour.space',
     sortOrder: 1,
   },
   {
