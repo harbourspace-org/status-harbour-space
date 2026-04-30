@@ -63,6 +63,7 @@ async function postSlack(n: IncidentNotice): Promise<void> {
   try {
     const status = INCIDENT_STATUS_LABEL[n.status];
     const severity = SEVERITY_LABEL[n.severity] ?? n.severity;
+    const adminLink = `${publicUrl()}/admin/incidents/${n.incidentId}`;
     const lines = [
       `*${subject(n)}*`,
       `Status: ${status}  ·  Severity: ${severity}`,
@@ -71,7 +72,7 @@ async function postSlack(n: IncidentNotice): Promise<void> {
       lines.push(`Affects: ${n.componentNames.join(', ')}`);
     }
     lines.push(`> ${n.message}`);
-    lines.push(publicUrl());
+    lines.push(`<${adminLink}|Open in admin>  ·  ${publicUrl()}`);
 
     const res = await fetchWithTimeout(url, {
       method: 'POST',
@@ -91,6 +92,7 @@ function escapeHtml(s: string): string {
 }
 
 async function postTelegram(n: IncidentNotice): Promise<void> {
+  if (n.severity !== 'major_outage') return;
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return;
