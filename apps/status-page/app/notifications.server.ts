@@ -2,6 +2,8 @@ import {
   INCIDENT_STATUS_LABEL,
   type IncidentStatusValue,
 } from './admin/incident-helpers';
+import { findRecipientsForIncident } from './db/subscribers.server';
+import { sendIncidentEmail } from './subscriptions.server';
 
 export type IncidentNotice = {
   kind: 'opened' | 'update';
@@ -11,6 +13,7 @@ export type IncidentNotice = {
   status: IncidentStatusValue;
   message: string;
   componentNames: string[];
+  componentIds: number[];
 };
 
 const STATUS_EMOJI: Record<IncidentStatusValue, string> = {
@@ -130,6 +133,30 @@ async function postTelegram(n: IncidentNotice): Promise<void> {
   }
 }
 
+async function fanOutEmail(n: IncidentNotice): Promise<void> {
+  try {
+    const recipients = await findRecipientsForIncident(n.componentIds);
+    if (recipients.length === 0) return;
+    const severityLabel = SEVERITY_LABEL[n.severity] ?? n.severity;
+    const statusLabel = INCIDENT_STATUS_LABEL[n.status];
+    await Promise.allSettled(
+      recipients.map((r) =>
+        sendIncidentEmail(r.email, r.token, {
+          incidentId: n.incidentId,
+          title: n.title,
+          severityLabel,
+          statusLabel,
+          message: n.message,
+          componentNames: n.componentNames,
+          kind: n.kind,
+        }),
+      ),
+    );
+  } catch (err) {
+    console.warn('[notify] Email fan-out failed:', err);
+  }
+}
+
 export async function notifyIncident(n: IncidentNotice): Promise<void> {
-  await Promise.allSettled([postSlack(n), postTelegram(n)]);
+  await Promise.allSettled([postSlack(n), postTelegram(n), fanOutEmail(n)]);
 }

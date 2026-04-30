@@ -143,7 +143,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       .limit(1);
     if (incidentRow) {
       const linkedRows = await db
-        .select({ name: componentsTable.name })
+        .select({ id: componentsTable.id, name: componentsTable.name })
         .from(incidentComponents)
         .innerJoin(
           componentsTable,
@@ -158,6 +158,7 @@ export async function action({ params, request }: Route.ActionArgs) {
         status,
         message,
         componentNames: linkedRows.map((r) => r.name),
+        componentIds: linkedRows.map((r) => r.id),
       });
     }
 

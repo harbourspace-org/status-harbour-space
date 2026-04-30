@@ -5,6 +5,7 @@ type SendArgs = {
   subject: string;
   text: string;
   html?: string;
+  headers?: Record<string, string>;
 };
 
 function getFrom(): string {
@@ -19,6 +20,7 @@ export async function sendEmail({
   subject,
   text,
   html,
+  headers,
 }: SendArgs): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
 
@@ -37,6 +39,7 @@ export async function sendEmail({
     subject,
     text,
     html: html ?? `<pre>${text}</pre>`,
+    headers,
   });
   if (error) {
     throw new Error(`Resend send failed: ${error.message}`);

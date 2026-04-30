@@ -85,7 +85,13 @@ async function reactOne(
       .orderBy(desc(incidentUpdates.postedAt))
       .limit(1);
     if (lastUpdate[0]?.status === 'monitoring') return;
-    await postMonitoringUpdate(open.id, open.title, open.severity, componentName);
+    await postMonitoringUpdate(
+      open.id,
+      open.title,
+      open.severity,
+      componentId,
+      componentName,
+    );
   }
 }
 
@@ -167,6 +173,7 @@ async function openAutoIncident(
     status: 'investigating',
     message,
     componentNames: [componentName],
+    componentIds: [componentId],
   });
 }
 
@@ -174,6 +181,7 @@ async function postMonitoringUpdate(
   incidentId: number,
   title: string,
   severity: AutoIncidentSeverity,
+  componentId: number,
   componentName: string,
 ): Promise<void> {
   const message =
@@ -200,5 +208,6 @@ async function postMonitoringUpdate(
     status: 'monitoring',
     message,
     componentNames: [componentName],
+    componentIds: [componentId],
   });
 }
