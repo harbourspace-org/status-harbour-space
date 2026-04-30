@@ -110,6 +110,84 @@ export async function compute90DayUptime(): Promise<Map<number, number>> {
   return out;
 }
 
+export type DayStatus = {
+  date: string;
+  status: DerivedStatus;
+};
+
+type DayRow = {
+  component_id: number;
+  day: string;
+  total: string;
+  failed: string;
+};
+
+// Returns one entry per component covering the last UPTIME_WINDOW_DAYS
+// days (oldest first, most recent last). Days with no probes are
+// emitted as `no_data` so the UI strip has a fixed length.
+//
+// Per-day status is derived from the failure ratio of that day's
+// probes:
+//   • 0%               → operational
+//   • 0% < x ≤ 1%      → performance_issues
+//   • 1% < x ≤ 10%     → partial_outage
+//   • > 10%            → component.severity_when_down (usually major)
+//
+// Picked these thresholds so a 5-minute blip (~5 failed probes out of
+// ~1440 daily) shows yellow, an hour-long outage shows orange, and
+// sustained issues show red. They're tunable here without DB changes.
+export async function compute90DayHistory(
+  componentSeverities: Map<number, Exclude<DerivedStatus, 'operational' | 'no_data'>>,
+): Promise<Map<number, DayStatus[]>> {
+  const componentIds = [...componentSeverities.keys()];
+  const result = new Map<number, DayStatus[]>();
+  if (componentIds.length === 0) return result;
+
+  const rows = (await db.execute(sql`
+    SELECT
+      p.component_id,
+      to_char(date_trunc('day', p.observed_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+      COUNT(*)::text AS total,
+      COUNT(*) FILTER (WHERE NOT p.ok)::text AS failed
+    FROM probes p
+    WHERE p.observed_at >= NOW() - (${UPTIME_WINDOW_DAYS} || ' days')::interval
+    GROUP BY p.component_id, day
+  `)) as unknown as DayRow[];
+
+  const byComponent = new Map<number, Map<string, { total: number; failed: number }>>();
+  for (const r of rows) {
+    const inner = byComponent.get(r.component_id) ?? new Map();
+    inner.set(r.day, { total: Number(r.total), failed: Number(r.failed) });
+    byComponent.set(r.component_id, inner);
+  }
+
+  const days: string[] = [];
+  const today = new Date();
+  for (let i = UPTIME_WINDOW_DAYS - 1; i >= 0; i--) {
+    const d = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i),
+    );
+    days.push(d.toISOString().slice(0, 10));
+  }
+
+  for (const componentId of componentIds) {
+    const inner = byComponent.get(componentId) ?? new Map();
+    const severity = componentSeverities.get(componentId) ?? 'major_outage';
+    const series: DayStatus[] = days.map((date) => {
+      const row = inner.get(date);
+      if (!row || row.total === 0) return { date, status: 'no_data' };
+      if (row.failed === 0) return { date, status: 'operational' };
+      const ratio = row.failed / row.total;
+      if (ratio <= 0.01) return { date, status: 'performance_issues' };
+      if (ratio <= 0.1) return { date, status: 'partial_outage' };
+      return { date, status: severity };
+    });
+    result.set(componentId, series);
+  }
+
+  return result;
+}
+
 type LastSeenRow = { last_seen: Date | null };
 
 // `online`  → at least one agent reported within AGENT_STALE_AFTER_SECONDS

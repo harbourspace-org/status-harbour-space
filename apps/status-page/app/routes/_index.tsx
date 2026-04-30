@@ -13,7 +13,9 @@ import {
   schedules,
 } from '../db/schema';
 import {
+  type DayStatus,
   type DerivedStatus,
+  compute90DayHistory,
   compute90DayUptime,
   computeComponentStatuses,
   getMonitoringHealth,
@@ -94,10 +96,15 @@ export async function loader() {
     >,
   }));
 
-  const [statusMap, uptimeMap, updateRows, incidentComponentLinks, scheduleComponentLinks] =
+  const severityByComponent = new Map(
+    componentMetas.map((c) => [c.componentId, c.severityWhenDown] as const),
+  );
+
+  const [statusMap, uptimeMap, historyMap, updateRows, incidentComponentLinks, scheduleComponentLinks] =
     await Promise.all([
       computeComponentStatuses(componentMetas),
       compute90DayUptime(),
+      compute90DayHistory(severityByComponent),
       incidentRows.length > 0
         ? db
             .select()
@@ -173,31 +180,25 @@ export async function loader() {
       .filter((n): n is string => Boolean(n)),
   }));
 
+  const componentEntry = (c: typeof componentRows[number]) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    description: c.description,
+    status: statusMap.get(c.id) ?? ('no_data' as DerivedStatus),
+    uptime90: uptimeMap.get(c.id) ?? null,
+    history: historyMap.get(c.id) ?? [],
+  });
+
   const groupEntries = groupRows.map((g) => ({
     id: g.id,
     name: g.name,
-    components: componentRows
-      .filter((c) => c.groupId === g.id)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        slug: c.slug,
-        description: c.description,
-        status: statusMap.get(c.id) ?? ('no_data' as DerivedStatus),
-        uptime90: uptimeMap.get(c.id) ?? null,
-      })),
+    components: componentRows.filter((c) => c.groupId === g.id).map(componentEntry),
   }));
 
   const ungrouped = componentRows
     .filter((c) => c.groupId === null)
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      slug: c.slug,
-      description: c.description,
-      status: statusMap.get(c.id) ?? ('no_data' as DerivedStatus),
-      uptime90: uptimeMap.get(c.id) ?? null,
-    }));
+    .map(componentEntry);
 
   const overall = worstStatus(statusMap.values());
 
@@ -220,6 +221,36 @@ const STATUS_DOT: Record<DerivedStatus, string> = {
   under_maintenance: 'bg-sky-500',
   no_data: 'bg-slate-400',
 };
+
+const BAR_COLOR: Record<DerivedStatus, string> = {
+  operational: 'bg-emerald-500',
+  performance_issues: 'bg-amber-500',
+  partial_outage: 'bg-orange-500',
+  major_outage: 'bg-rose-500',
+  under_maintenance: 'bg-sky-500',
+  no_data: 'bg-slate-200 dark:bg-slate-800',
+};
+
+function UptimeBars({
+  history,
+  statusLabels,
+}: {
+  history: DayStatus[];
+  statusLabels: Record<DerivedStatus, string>;
+}) {
+  if (history.length === 0) return null;
+  return (
+    <div className="flex h-7 flex-1 gap-[2px]">
+      {history.map((day) => (
+        <span
+          key={day.date}
+          title={`${day.date} · ${statusLabels[day.status]}`}
+          className={`h-7 flex-1 rounded-[2px] ${BAR_COLOR[day.status]}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 const STATUS_BAR: Record<DerivedStatus, string> = {
   operational: 'bg-emerald-50 text-emerald-900 border-emerald-200',
@@ -511,40 +542,51 @@ function ComponentGroup({
     description: string | null;
     status: DerivedStatus;
     uptime90: number | null;
+    history: DayStatus[];
   }>;
   noneLabel: string;
 }) {
   const { t } = useTranslation();
+  const statusLabels: Record<DerivedStatus, string> = {
+    operational: t('status.operational'),
+    performance_issues: t('status.performance_issues'),
+    partial_outage: t('status.partial_outage'),
+    major_outage: t('status.major_outage'),
+    under_maintenance: t('status.under_maintenance'),
+    no_data: t('status.no_data'),
+  };
   return (
     <div>
       <h3 className="mb-2 text-base font-semibold">{name}</h3>
       <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
         {list.map((c) => (
-          <li
-            key={c.id}
-            className="flex items-center justify-between gap-4 px-4 py-3"
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <StatusDot status={c.status} />
-                <span className="truncate font-medium">{c.name}</span>
+          <li key={c.id} className="px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <StatusDot status={c.status} />
+                  <span className="truncate font-medium">{c.name}</span>
+                </div>
+                {c.description && (
+                  <p className="ml-4.5 mt-0.5 truncate text-xs text-slate-500">
+                    {c.description}
+                  </p>
+                )}
               </div>
-              {c.description && (
-                <p className="ml-4.5 mt-0.5 truncate text-xs text-slate-500">
-                  {c.description}
-                </p>
-              )}
-            </div>
-            <div className="flex shrink-0 items-center gap-3 text-xs">
-              <span className="hidden text-slate-400 sm:inline">
-                {t('uptime.label90d', {
-                  value: formatUptime(c.uptime90, noneLabel),
-                })}
-              </span>
-              <span className="text-slate-700 dark:text-slate-300">
-                {t(`status.${c.status}`)}
+              <span className="shrink-0 text-xs text-slate-700 dark:text-slate-300">
+                {statusLabels[c.status]}
               </span>
             </div>
+            {c.history.length > 0 && (
+              <div className="mt-3 flex items-center gap-3">
+                <UptimeBars history={c.history} statusLabels={statusLabels} />
+                <span className="shrink-0 whitespace-nowrap text-xs text-slate-400">
+                  {t('uptime.label90d', {
+                    value: formatUptime(c.uptime90, noneLabel),
+                  })}
+                </span>
+              </div>
+            )}
           </li>
         ))}
       </ul>
