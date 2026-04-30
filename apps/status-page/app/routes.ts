@@ -3,6 +3,9 @@ import { type RouteConfig, index, route } from '@react-router/dev/routes';
 export default [
   index('routes/_index.tsx'),
   route('set-lang', 'routes/set-lang.tsx'),
+  route('subscribe', 'routes/subscribe.tsx'),
+  route('subscribe/confirm', 'routes/subscribe.confirm.tsx'),
+  route('unsubscribe', 'routes/unsubscribe.tsx'),
   route('api/internal/components', 'routes/api.internal.components.tsx'),
   route('api/internal/heartbeat', 'routes/api.internal.heartbeat.tsx'),
   route('api/internal/probes', 'routes/api.internal.probes.tsx'),

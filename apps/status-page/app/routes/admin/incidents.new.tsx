@@ -112,6 +112,7 @@ export async function action({ request }: Route.ActionArgs) {
     status,
     message,
     componentNames: linkedComponents.map((c) => c.name),
+    componentIds,
   });
 
   throw redirect(`/admin/incidents/${newId}`);

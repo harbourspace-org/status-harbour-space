@@ -486,6 +486,10 @@ export default function Index() {
       )}
 
       <footer className="mt-12 text-xs text-slate-400">
+        <a href="/subscribe" className="text-brand underline">
+          {t('footer.subscribe')}
+        </a>
+        {' · '}
         {t('footer.updated', {
           relative: formatRelative(data.generatedAt, lng, t),
         })}{' '}

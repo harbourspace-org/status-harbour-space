@@ -10,7 +10,8 @@
   },
   "footer": {
     "updated": "Updated {{relative}}",
-    "tagline": "Multi-zone consensus monitoring"
+    "tagline": "Multi-zone consensus monitoring",
+    "subscribe": "Subscribe to updates"
   },
   "language": {
     "english": "English",
@@ -72,5 +73,41 @@
     "hoursAgo_other": "{{count}}h ago",
     "daysAgo_one": "{{count}}d ago",
     "daysAgo_other": "{{count}}d ago"
+  },
+  "subscribe": {
+    "title": "Subscribe to status updates",
+    "intro": "Get an email when harbour.space services have an incident. Confirm your address to start receiving updates; you can unsubscribe in one click.",
+    "emailLabel": "Email address",
+    "scopeLabel": "Notify me about",
+    "scopeAll": "All harbour.space services",
+    "submit": "Subscribe",
+    "checkEmailTitle": "Check your inbox",
+    "checkEmailBody": "We sent a confirmation link to {{email}}. Click it to start receiving incident updates.",
+    "alreadyTitle": "You're already subscribed",
+    "alreadyBody": "{{email}} is already confirmed for these updates. Check the unsubscribe link in any of our emails to stop receiving them.",
+    "backHome": "Back to status page",
+    "tryAgain": "Try again",
+    "confirmedTitle": "Subscription confirmed",
+    "confirmedBody": "You'll get an email when an incident opens or updates. Thanks for following along.",
+    "confirmFailedTitle": "Confirmation link is no longer valid",
+    "confirmFailedBody": "The confirmation token is missing, expired, or already used. Subscribe again to receive a fresh link.",
+    "unsubscribeLink": "Unsubscribe",
+    "error": {
+      "invalid-email": "Please enter a valid email address.",
+      "invalid-component": "That component does not exist. Pick one from the list.",
+      "captcha": "Captcha verification failed. Please try again."
+    }
+  },
+  "unsubscribe": {
+    "confirmTitle": "Unsubscribe from status updates",
+    "confirmBody": "We'll stop sending you incident emails. You can resubscribe at any time.",
+    "confirmButton": "Unsubscribe",
+    "cancelButton": "Cancel",
+    "doneTitle": "Unsubscribed",
+    "doneBody": "You won't receive any more incident emails. We're sorry to see you go.",
+    "failedTitle": "Unsubscribe link is no longer valid",
+    "failedBody": "The token is missing or already used. If you're still receiving emails, contact support.",
+    "missingTitle": "Missing token",
+    "missingBody": "This unsubscribe link is incomplete. Use the link in the most recent email you received."
   }
 }

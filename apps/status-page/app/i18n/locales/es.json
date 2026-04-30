@@ -10,7 +10,8 @@
   },
   "footer": {
     "updated": "Actualizado {{relative}}",
-    "tagline": "Monitorización por consenso multizona"
+    "tagline": "Monitorización por consenso multizona",
+    "subscribe": "Suscribirse a las actualizaciones"
   },
   "language": {
     "english": "Inglés",
@@ -72,5 +73,41 @@
     "hoursAgo_other": "hace {{count}}h",
     "daysAgo_one": "hace {{count}}d",
     "daysAgo_other": "hace {{count}}d"
+  },
+  "subscribe": {
+    "title": "Suscríbete a las actualizaciones de estado",
+    "intro": "Recibe un correo cuando los servicios de harbour.space tengan un incidente. Confirma tu dirección para empezar a recibir avisos; puedes darte de baja en un clic.",
+    "emailLabel": "Correo electrónico",
+    "scopeLabel": "Avísame sobre",
+    "scopeAll": "Todos los servicios de harbour.space",
+    "submit": "Suscribirme",
+    "checkEmailTitle": "Revisa tu bandeja",
+    "checkEmailBody": "Te hemos enviado un enlace de confirmación a {{email}}. Haz clic para empezar a recibir actualizaciones.",
+    "alreadyTitle": "Ya estás suscrito",
+    "alreadyBody": "{{email}} ya está confirmado para estas actualizaciones. Usa el enlace de baja en cualquiera de nuestros correos para dejar de recibirlos.",
+    "backHome": "Volver al estado",
+    "tryAgain": "Intenta de nuevo",
+    "confirmedTitle": "Suscripción confirmada",
+    "confirmedBody": "Recibirás un correo cuando se abra o actualice un incidente. Gracias por seguir el estado.",
+    "confirmFailedTitle": "El enlace de confirmación ya no es válido",
+    "confirmFailedBody": "El token de confirmación falta, ha caducado o ya se ha usado. Vuelve a suscribirte para recibir un enlace nuevo.",
+    "unsubscribeLink": "Darse de baja",
+    "error": {
+      "invalid-email": "Introduce una dirección de correo válida.",
+      "invalid-component": "Ese componente no existe. Elige uno de la lista.",
+      "captcha": "La verificación del captcha ha fallado. Inténtalo de nuevo."
+    }
+  },
+  "unsubscribe": {
+    "confirmTitle": "Darse de baja de las actualizaciones",
+    "confirmBody": "Dejaremos de enviarte correos de incidentes. Puedes volver a suscribirte cuando quieras.",
+    "confirmButton": "Darme de baja",
+    "cancelButton": "Cancelar",
+    "doneTitle": "Baja completada",
+    "doneBody": "No recibirás más correos de incidentes. Sentimos verte marchar.",
+    "failedTitle": "El enlace de baja ya no es válido",
+    "failedBody": "El token falta o ya se ha usado. Si sigues recibiendo correos, contacta con soporte.",
+    "missingTitle": "Token ausente",
+    "missingBody": "Este enlace de baja está incompleto. Usa el enlace del último correo que has recibido."
   }
 }
