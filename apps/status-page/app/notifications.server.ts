@@ -160,3 +160,56 @@ async function fanOutEmail(n: IncidentNotice): Promise<void> {
 export async function notifyIncident(n: IncidentNotice): Promise<void> {
   await Promise.allSettled([postSlack(n), postTelegram(n), fanOutEmail(n)]);
 }
+
+export type AgentDissentNotice = {
+  componentName: string;
+  agentId: string;
+  region: string;
+};
+
+// Slack-only [heads-up] message for the case where one agent has just
+// transitioned ok → fail but consensus across the other agents says
+// the component is still operational. Public status does not flip,
+// no auto-incident opens, no Telegram, no email fan-out. The on-call
+// channel gets a quiet note so they can poke the agent if it persists.
+export async function notifyAgentDissent(
+  notices: AgentDissentNotice[],
+): Promise<void> {
+  if (notices.length === 0) return;
+  const url = process.env.SLACK_WEBHOOK_URL;
+  if (!url) return;
+
+  // Group by component so a single Slack message lists every agent
+  // currently dissenting on a given component.
+  const byComponent = new Map<string, AgentDissentNotice[]>();
+  for (const n of notices) {
+    const list = byComponent.get(n.componentName) ?? [];
+    list.push(n);
+    byComponent.set(n.componentName, list);
+  }
+
+  await Promise.allSettled(
+    [...byComponent.entries()].map(async ([componentName, list]) => {
+      const agentList = list
+        .map((n) => `\`${n.agentId}\` (${n.region})`)
+        .join(', ');
+      const text = [
+        `*[heads-up]* ${agentList} reports *${componentName}* as failing.`,
+        `Consensus from other agents is still operational — no incident opened.`,
+        `Will escalate to a real incident if a second region agrees.`,
+      ].join('\n');
+      try {
+        const res = await fetchWithTimeout(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!res.ok) {
+          console.warn(`[notify] Slack heads-up returned ${res.status}`);
+        }
+      } catch (err) {
+        console.warn('[notify] Slack heads-up failed:', err);
+      }
+    }),
+  );
+}
