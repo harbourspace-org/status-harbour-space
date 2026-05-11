@@ -204,14 +204,17 @@ type DayAgentRow = {
 // one agent the second-highest is undefined and we fall back to the
 // only agent's rate (preserves single-agent behaviour). With ≥2 agents
 // a single bad agent doesn't redden the bar — only when two or more
-// agents agree on failure does the day colour up. Same thresholds as
-// before:
-//   • 0%               → operational
-//   • 0% < x ≤ 1%      → performance_issues
-//   • 1% < x ≤ 10%     → partial_outage
-//   • > 10%            → component.severity_when_down (usually major)
+// agents agree on failure does the day colour up.
 //
-// Tunable without DB changes.
+// Thresholds (tunable here without DB changes):
+//   • 0%               → operational           (green)
+//   • 0% < x ≤ 5%      → performance_issues    (amber)
+//   • 5% < x ≤ 20%     → partial_outage        (orange)
+//   • > 20%            → component.severity_when_down (usually major)
+//
+// At 1 probe per minute (1440/day), 5% = ~72 failed probes which is
+// ~72 minutes-equivalent of issues — anything less is just transient
+// timeouts / single-probe blips and shouldn't show as orange.
 export async function compute90DayHistory(
   componentSeverities: Map<number, Exclude<DerivedStatus, 'operational' | 'no_data'>>,
 ): Promise<Map<number, DayStatus[]>> {
@@ -266,8 +269,8 @@ export async function compute90DayHistory(
       const consensusRatio = ratios.length >= 2 ? ratios[1] : ratios[0];
 
       if (consensusRatio === 0) return { date, status: 'operational' };
-      if (consensusRatio <= 0.01) return { date, status: 'performance_issues' };
-      if (consensusRatio <= 0.1) return { date, status: 'partial_outage' };
+      if (consensusRatio <= 0.05) return { date, status: 'performance_issues' };
+      if (consensusRatio <= 0.2) return { date, status: 'partial_outage' };
       return { date, status: severity };
     });
     result.set(componentId, series);
