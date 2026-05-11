@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
-import { notifyIncident } from '../notifications.server';
+import { notifyAgentDissent, notifyIncident } from '../notifications.server';
 import { db } from './client';
 import {
   components as componentsTable,
@@ -11,6 +11,7 @@ import {
 import {
   type DerivedStatus,
   computeComponentStatuses,
+  findNewAgentDissent,
 } from './status';
 
 type AutoIncidentSeverity = Exclude<
@@ -60,6 +61,26 @@ export async function reactToProbeBatch(componentIds: number[]): Promise<void> {
   for (const c of monitored) {
     const status = statusMap.get(c.id) ?? 'no_data';
     await reactOne(c.id, c.name, status);
+  }
+
+  // Single-agent dissent: any agent that just flipped ok→fail on a
+  // component whose consensus still says operational. We only emit
+  // the Slack [heads-up] for those — components with a real consensus
+  // failure are handled by the auto-incident flow above.
+  const operationalIds = monitored
+    .filter((c) => (statusMap.get(c.id) ?? 'no_data') === 'operational')
+    .map((c) => c.id);
+  if (operationalIds.length > 0) {
+    const dissent = await findNewAgentDissent(operationalIds);
+    if (dissent.length > 0) {
+      await notifyAgentDissent(
+        dissent.map((d) => ({
+          componentName: d.componentName,
+          agentId: d.agentId,
+          region: d.region,
+        })),
+      );
+    }
   }
 }
 
