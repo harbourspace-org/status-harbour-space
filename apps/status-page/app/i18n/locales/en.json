@@ -10,8 +10,10 @@
   },
   "footer": {
     "updated": "Updated {{relative}}",
-    "tagline": "Multi-zone consensus monitoring",
-    "subscribe": "Subscribe to updates"
+    "tagline": "Multi-zone consensus monitoring"
+  },
+  "legend": {
+    "title": "Last 90 days"
   },
   "language": {
     "english": "English",
