@@ -10,6 +10,7 @@ type Env = {
   HEARTBEAT_CRON: string;
   COMPONENTS_REFRESH_CRON: string;
   PROBE_TIMEOUT_MS: number;
+  PROBE_RETRY_BACKOFF_MS: number;
 };
 
 function required(key: string): string {
@@ -29,7 +30,8 @@ const env: Env = {
   PROBE_CRON: process.env.PROBE_CRON ?? '0 * * * * *',
   HEARTBEAT_CRON: process.env.HEARTBEAT_CRON ?? '*/30 * * * * *',
   COMPONENTS_REFRESH_CRON: process.env.COMPONENTS_REFRESH_CRON ?? '*/5 * * * *',
-  PROBE_TIMEOUT_MS: Number(process.env.PROBE_TIMEOUT_MS) || 5000,
+  PROBE_TIMEOUT_MS: Number(process.env.PROBE_TIMEOUT_MS) || 10000,
+  PROBE_RETRY_BACKOFF_MS: Number(process.env.PROBE_RETRY_BACKOFF_MS) || 250,
 };
 
 type Component = {
@@ -82,7 +84,7 @@ async function refreshComponents(): Promise<void> {
   }
 }
 
-async function probeOne(c: Component): Promise<ProbeResult> {
+async function probeOnce(c: Component): Promise<ProbeResult> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), env.PROBE_TIMEOUT_MS);
   const started = Date.now();
@@ -116,6 +118,19 @@ async function probeOne(c: Component): Promise<ProbeResult> {
     observed_at: new Date().toISOString(),
     ...(error ? { error } : {}),
   };
+}
+
+// Retries once on failure. Single-probe blips (a 1s network hiccup, a
+// 503 from Cloudflare while it failovers, a fetch that timed out at
+// the 10s mark) shouldn't show up as outages — only persistent issues
+// should. If the retry succeeds we report the retry's data so the
+// dashboard shows real latency.
+async function probeOne(c: Component): Promise<ProbeResult> {
+  const first = await probeOnce(c);
+  if (first.ok) return first;
+  await new Promise((r) => setTimeout(r, env.PROBE_RETRY_BACKOFF_MS));
+  const retry = await probeOnce(c);
+  return retry;
 }
 
 async function readBodyCapped(
