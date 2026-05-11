@@ -10,8 +10,10 @@
   },
   "footer": {
     "updated": "Actualizado {{relative}}",
-    "tagline": "Monitorización por consenso multizona",
-    "subscribe": "Suscribirse a las actualizaciones"
+    "tagline": "Monitorización por consenso multizona"
+  },
+  "legend": {
+    "title": "Últimos 90 días"
   },
   "language": {
     "english": "Inglés",

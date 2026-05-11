@@ -231,6 +231,34 @@ const BAR_COLOR: Record<DerivedStatus, string> = {
   no_data: 'bg-slate-200 dark:bg-slate-800',
 };
 
+function BarLegend() {
+  const { t } = useTranslation();
+  const items: DerivedStatus[] = [
+    'operational',
+    'performance_issues',
+    'partial_outage',
+    'major_outage',
+    'under_maintenance',
+    'no_data',
+  ];
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+      <span className="font-medium uppercase tracking-wide">
+        {t('legend.title')}
+      </span>
+      {items.map((s) => (
+        <span key={s} className="inline-flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className={`inline-block h-3 w-3 rounded-[2px] ${BAR_COLOR[s]}`}
+          />
+          {t(`status.${s}`)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function UptimeBars({
   history,
   statusLabels,
@@ -424,6 +452,32 @@ export default function Index() {
         </div>
       </section>
 
+      <section className="mb-10">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+          {t('sections.components')}
+        </h2>
+        <div className="space-y-6">
+          {data.groups.map((g) =>
+            g.components.length === 0 ? null : (
+              <ComponentGroup
+                key={g.id}
+                name={g.name}
+                components={g.components}
+                noneLabel={noneLabel}
+              />
+            ),
+          )}
+          {data.ungrouped.length > 0 && (
+            <ComponentGroup
+              name={t('sections.other')}
+              components={data.ungrouped}
+              noneLabel={noneLabel}
+            />
+          )}
+        </div>
+        <BarLegend />
+      </section>
+
       {activeIncidents.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -478,31 +532,6 @@ export default function Index() {
         </section>
       )}
 
-      <section className="mb-10">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          {t('sections.components')}
-        </h2>
-        <div className="space-y-6">
-          {data.groups.map((g) =>
-            g.components.length === 0 ? null : (
-              <ComponentGroup
-                key={g.id}
-                name={g.name}
-                components={g.components}
-                noneLabel={noneLabel}
-              />
-            ),
-          )}
-          {data.ungrouped.length > 0 && (
-            <ComponentGroup
-              name={t('sections.other')}
-              components={data.ungrouped}
-              noneLabel={noneLabel}
-            />
-          )}
-        </div>
-      </section>
-
       {recentIncidents.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -517,10 +546,6 @@ export default function Index() {
       )}
 
       <footer className="mt-12 text-xs text-slate-400">
-        <a href="/subscribe" className="text-brand underline">
-          {t('footer.subscribe')}
-        </a>
-        {' · '}
         {t('footer.updated', {
           relative: formatRelative(data.generatedAt, lng, t),
         })}{' '}
