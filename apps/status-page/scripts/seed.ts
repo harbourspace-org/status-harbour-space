@@ -51,6 +51,9 @@ const seedComponents: SeedComponent[] = [
     name: 'Student Space',
     group: 'Student-facing services',
     probeUrl: 'https://student.harbour.space/',
+    // Next.js mount point. If a 200 comes back without it, the Next app
+    // isn't responding (CDN error page, maintenance, etc.).
+    expectedBodySubstring: '__next',
     severityWhenDown: 'major_outage',
     description: 'student.harbour.space',
     sortOrder: 2,
@@ -60,6 +63,9 @@ const seedComponents: SeedComponent[] = [
     name: 'Student admin',
     group: 'Internal services',
     probeUrl: 'https://student-admin.harbour.space/admin/login',
+    // Laravel Nova encodes the page component name in the inertia data
+    // payload; "Nova.Login" appears whenever the login screen renders.
+    expectedBodySubstring: 'Nova.Login',
     severityWhenDown: 'partial_outage',
     description: 'student-admin.harbour.space',
     sortOrder: 1,
@@ -69,6 +75,8 @@ const seedComponents: SeedComponent[] = [
     name: 'Visual Regression Service',
     group: 'Internal services',
     probeUrl: 'https://qa.harbour.space/',
+    // Page <title>. Stable text that's only there when the QA UI renders.
+    expectedBodySubstring: 'Visual Regression',
     severityWhenDown: 'partial_outage',
     description: 'qa.harbour.space',
     sortOrder: 2,
