@@ -195,6 +195,14 @@ type DayAgentRow = {
   failed: string;
 };
 
+// A failure "counts" toward the day's bar only if it's part of a
+// streak of at least this many consecutive failed probes for the same
+// (component, agent). At 1 probe / minute that's a real ≥3-minute
+// outage. Isolated blips (a single CF 5xx, a one-off timeout) do not
+// affect the bar colour, but they're still stored in `probes` for
+// raw inspection.
+const MIN_CONSECUTIVE_FAILURES_FOR_BAR = 3;
+
 // Returns one entry per component covering the last UPTIME_WINDOW_DAYS
 // days (oldest first, most recent last). Days with no probes are
 // emitted as `no_data` so the UI strip has a fixed length.
@@ -206,6 +214,12 @@ type DayAgentRow = {
 // a single bad agent doesn't redden the bar — only when two or more
 // agents agree on failure does the day colour up.
 //
+// The failure ratio used here is computed against the "real failure"
+// definition: a probe is "really failing" only when it belongs to a
+// streak of MIN_CONSECUTIVE_FAILURES_FOR_BAR or more consecutive fails
+// for that (component, agent). Isolated blips do not contribute to
+// the ratio at all.
+//
 // Thresholds (tunable here without DB changes):
 //   • 0%               → operational           (green)
 //   • 0% < x ≤ 5%      → performance_issues    (amber)
@@ -213,8 +227,8 @@ type DayAgentRow = {
 //   • > 20%            → component.severity_when_down (usually major)
 //
 // At 1 probe per minute (1440/day), 5% = ~72 failed probes which is
-// ~72 minutes-equivalent of issues — anything less is just transient
-// timeouts / single-probe blips and shouldn't show as orange.
+// ~72 minutes of real continuous failure — anything less is just
+// noise.
 export async function compute90DayHistory(
   componentSeverities: Map<number, Exclude<DerivedStatus, 'operational' | 'no_data'>>,
 ): Promise<Map<number, DayStatus[]>> {
@@ -222,16 +236,50 @@ export async function compute90DayHistory(
   const result = new Map<number, DayStatus[]>();
   if (componentIds.length === 0) return result;
 
+  // Streak-aware aggregation: gaps-and-islands.
+  //
+  // 1. `streaks` numbers each probe by observed_at within its
+  //    (component, agent) and computes a grp id that increments
+  //    every time `ok` flips — so a contiguous block of fails or
+  //    of oks share the same grp.
+  // 2. `streak_sizes` counts how many probes are in each grp.
+  // 3. The outer SELECT counts "real failures" only when ok=false
+  //    AND streak size >= MIN_CONSECUTIVE_FAILURES_FOR_BAR, and
+  //    counts the total of all probes per (component, agent, day).
   const rows = (await db.execute(sql`
+    WITH streaks AS (
+      SELECT
+        p.component_id,
+        p.agent_id,
+        p.observed_at,
+        p.ok,
+        ROW_NUMBER() OVER w AS rn,
+        ROW_NUMBER() OVER w
+          - ROW_NUMBER() OVER (PARTITION BY p.component_id, p.agent_id, p.ok ORDER BY p.observed_at)
+          AS grp
+      FROM probes p
+      WHERE p.observed_at >= NOW() - (${UPTIME_WINDOW_DAYS} || ' days')::interval
+      WINDOW w AS (PARTITION BY p.component_id, p.agent_id ORDER BY p.observed_at)
+    ),
+    streak_sizes AS (
+      SELECT
+        component_id,
+        agent_id,
+        observed_at,
+        ok,
+        COUNT(*) OVER (PARTITION BY component_id, agent_id, ok, grp) AS streak_len
+      FROM streaks
+    )
     SELECT
-      p.component_id,
-      to_char(date_trunc('day', p.observed_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
-      p.agent_id,
+      component_id,
+      to_char(date_trunc('day', observed_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+      agent_id,
       COUNT(*)::text AS total,
-      COUNT(*) FILTER (WHERE NOT p.ok)::text AS failed
-    FROM probes p
-    WHERE p.observed_at >= NOW() - (${UPTIME_WINDOW_DAYS} || ' days')::interval
-    GROUP BY p.component_id, day, p.agent_id
+      COUNT(*) FILTER (
+        WHERE NOT ok AND streak_len >= ${MIN_CONSECUTIVE_FAILURES_FOR_BAR}
+      )::text AS failed
+    FROM streak_sizes
+    GROUP BY component_id, day, agent_id
   `)) as unknown as DayAgentRow[];
 
   // component -> day -> agent -> failRatio
