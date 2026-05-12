@@ -73,19 +73,30 @@ Multiple instances run in different zones — at minimum: Railway (EU), one inte
 
 ## Consensus logic (Status Page side)
 
-For each component, every 30 s the Status Page recomputes status from the last 2 minutes of probes:
+For each component, every probe batch the Status Page recomputes status using a two-stage rule:
 
-| Observed | Component status |
-|----------|------------------|
-| All agents OK | Operational |
-| One agent failing, others OK | Performance issues (single-zone blip) |
-| ≥ 2 agents in different regions failing | Partial outage → auto-incident |
-| All reporting agents failing | Major outage → auto-incident |
-| No reports from any agent in 5 minutes | "Monitoring offline" banner; do not change statuses |
+**Stage 1 — debounced per-agent vote.** For each agent the Status Page looks at the most recent **2 probes** within a 5-minute lookback. The agent's vote is failing only when *both* are fails (≥ 1 minute of sustained failure). A single transient probe — a CF 5xx, a one-off timeout, a brand-new agent that hasn't probed enough yet — is treated as an "ok" vote here. This is what kills the "EU PoP blip on two agents at once" false-positive class.
 
-The "different regions" requirement is what makes single-agent network problems a non-issue. We never trust a single agent.
+**Stage 2 — aggregate across agents.**
+
+| Failing votes (after debounce) | Component status |
+|--------------------------------|------------------|
+| 0 | Operational |
+| 1–2 of ≥ 3 reporting agents | Operational publicly; `[heads-up]` Slack only |
+| All reporting agents failing | `severity_when_down` → auto-incident |
+| ≥ 3 in ≥ 2 distinct regions, not all | Partial outage → auto-incident |
+| ≥ 3 in the same region | Performance issues |
+| No probes in the lookback | "Monitoring offline" banner; do not change statuses |
+
+Two safety nets remain for small fleets: the "all reporting agents failing" branch fires even with 1–2 agents reporting, so single-agent setups still flip to severity when their only observer agrees. Recovery is asymmetric — an agent's vote returns to "ok" as soon as a single recent probe succeeds, so a real fix shows on the bar within ~1 probe cycle while detection takes ~2.
+
+A separate first-fail detector emits the Slack `[heads-up]` channel on every agent transition from ok → fail, so the team gets early signal even when the public bar stays green.
 
 When the consensus says a component went from Operational → Partial / Major and there's no open incident for it, we auto-create one in `Investigating`. On recovery we post a `Monitoring` update on the open auto-incident; humans confirm `Resolved`.
+
+### Planned-maintenance detection (agent side)
+
+Harbour.Space services redirect traffic to `https://maintenance.harbour.space/` during planned work. The uptime-monitor agent recognises that landing page (configurable via `MAINTENANCE_HOSTS`) and reports the probe as `ok=true` with `error='maintenance'`. The result: the public bar stays green during planned work and the raw probe row is still distinguishable for forensic queries. Operators should *also* create a Schedule in `/admin/schedules/new` so the public banner shows the maintenance window — auto-detection only prevents the bar from going orange; it does not announce maintenance to users.
 
 ## Failure isolation (still the hard constraint)
 

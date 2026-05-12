@@ -79,6 +79,8 @@ Example:
 
 For planned work, create a **Schedule** (not an Incident) in `/admin/schedules/new`. **Minimum 48 hours advance notice** for any maintenance with user-visible impact.
 
+> **Auto-detection.** While the site is redirecting users to `https://maintenance.harbour.space/`, uptime-monitor agents recognise that landing page and report the affected components as `ok` (with `error='maintenance'` in the raw probe row). The public bar stays green during the redirect — but **this does not announce maintenance to users**. Always create the Schedule too, so subscribers and the public page see the planned window.
+
 ### Template
 
 ```
