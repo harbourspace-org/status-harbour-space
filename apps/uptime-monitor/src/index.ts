@@ -11,6 +11,7 @@ type Env = {
   COMPONENTS_REFRESH_CRON: string;
   PROBE_TIMEOUT_MS: number;
   PROBE_RETRY_BACKOFF_MS: number;
+  MAINTENANCE_HOSTS: Set<string>;
 };
 
 function required(key: string): string {
@@ -22,6 +23,12 @@ function required(key: string): string {
   return v;
 }
 
+// Hostnames that mean "this target is in a maintenance window" — the
+// site temporarily redirects all traffic to the shared maintenance
+// landing page while we deploy or operate on it. A probe that lands
+// on one of these is reported as ok with error='maintenance', so the
+// public bar stays green during planned work. Comma-separated env
+// override available for ad-hoc maintenance hosts.
 const env: Env = {
   STATUS_PAGE_URL: required('STATUS_PAGE_URL').replace(/\/$/, ''),
   AGENT_ID: required('AGENT_ID'),
@@ -32,6 +39,12 @@ const env: Env = {
   COMPONENTS_REFRESH_CRON: process.env.COMPONENTS_REFRESH_CRON ?? '*/5 * * * *',
   PROBE_TIMEOUT_MS: Number(process.env.PROBE_TIMEOUT_MS) || 10000,
   PROBE_RETRY_BACKOFF_MS: Number(process.env.PROBE_RETRY_BACKOFF_MS) || 250,
+  MAINTENANCE_HOSTS: new Set(
+    (process.env.MAINTENANCE_HOSTS ?? 'maintenance.harbour.space')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  ),
 };
 
 type Component = {
@@ -84,6 +97,15 @@ async function refreshComponents(): Promise<void> {
   }
 }
 
+function isMaintenanceLanding(finalUrl: string): boolean {
+  try {
+    const host = new URL(finalUrl).hostname.toLowerCase();
+    return env.MAINTENANCE_HOSTS.has(host);
+  } catch {
+    return false;
+  }
+}
+
 async function probeOnce(c: Component): Promise<ProbeResult> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), env.PROBE_TIMEOUT_MS);
@@ -94,16 +116,25 @@ async function probeOnce(c: Component): Promise<ProbeResult> {
   try {
     const res = await fetch(c.probe_url, { signal: ac.signal, redirect: 'follow' });
     statusCode = res.status;
-    const statusOk = res.status === c.expected_status;
-    if (!statusOk) {
-      ok = false;
-    } else if (c.expected_body_substring) {
-      const body = await readBodyCapped(res, BODY_READ_LIMIT, ac.signal);
-      const needle = c.expected_body_substring.toLowerCase();
-      ok = body.toLowerCase().includes(needle);
-      if (!ok) error = `body did not contain expected substring`;
-    } else {
+    // Maintenance redirect: target sent us to the shared maintenance
+    // landing page. Treat as ok so the public bar stays green during
+    // planned work; tag with error='maintenance' so it's distinguishable
+    // from a real ok in raw probe rows.
+    if (isMaintenanceLanding(res.url)) {
       ok = true;
+      error = 'maintenance';
+    } else {
+      const statusOk = res.status === c.expected_status;
+      if (!statusOk) {
+        ok = false;
+      } else if (c.expected_body_substring) {
+        const body = await readBodyCapped(res, BODY_READ_LIMIT, ac.signal);
+        const needle = c.expected_body_substring.toLowerCase();
+        ok = body.toLowerCase().includes(needle);
+        if (!ok) error = `body did not contain expected substring`;
+      } else {
+        ok = true;
+      }
     }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);

@@ -30,6 +30,7 @@ The agent also pings `${STATUS_PAGE_URL}/api/internal/heartbeat` every 30 s so t
 | `AGENT_SHARED_SECRET` | yes | HMAC secret; same value as the Status Page's `AGENT_SHARED_SECRET` |
 | `PROBE_INTERVAL_SECONDS` | no, default 60 | how often to probe |
 | `PROBE_TIMEOUT_MS` | no, default 5000 | per-probe HTTP timeout |
+| `MAINTENANCE_HOSTS` | no, default `maintenance.harbour.space` | comma-separated hostnames; if a probe ends up on one of these after following redirects, the agent reports `ok=true` with `error='maintenance'` so the public bar stays green during planned work |
 
 ## Deployment
 

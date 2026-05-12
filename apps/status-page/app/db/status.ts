@@ -15,13 +15,38 @@ export const AGENT_STALE_AFTER_SECONDS = Number(
 );
 
 const PROBE_CONSENSUS_WINDOW_SECONDS = 120;
+
+// Lookback for the live status consensus. Wider than
+// PROBE_CONSENSUS_WINDOW_SECONDS so each agent has enough probes inside
+// it to evaluate the consecutive-failure debounce below — at the 60s
+// probe cadence, 5 minutes gives the debounce plenty of headroom even
+// when probes arrive jittered.
+const LIVE_CONSENSUS_LOOKBACK_SECONDS = 300;
+
+// An agent's vote only counts as "failing" once its most recent N
+// probes are *all* fails — at 60s probes that is a real ≥2-minute
+// outage from that observer. Single-probe transients (a CF 5xx, a
+// one-off timeout) stay invisible on the public bar; they still trip
+// the [heads-up] Slack channel via findNewAgentDissent.
+const MIN_CONSECUTIVE_FAILURES_FOR_VOTE = 2;
+
+// How many failing votes are needed before the public bar moves. With
+// the current 4-agent fleet (railway-eu, do-nyc3, loc-dev, ss-stage)
+// this is 3 — i.e. at least three independent observation paths must
+// agree before we colour the bar. Fewer failing votes are surfaced
+// only via the internal [heads-up] channel. The "all reporting agents
+// failing" branch overrides this so smaller fleets (1–2 reporting
+// agents) still flip to severity when everyone agrees.
+const MIN_FAILING_VOTES_FOR_PUBLIC_FLIP = 3;
+
 const UPTIME_WINDOW_DAYS = 90;
 
-type ProbeRow = {
+type AgentVoteRow = {
   component_id: number;
   agent_id: string;
-  ok: boolean;
   region: string;
+  recent_count: string;
+  any_recent_ok: boolean;
 };
 
 type ComponentMeta = {
@@ -29,25 +54,37 @@ type ComponentMeta = {
   severityWhenDown: Exclude<DerivedStatus, 'operational' | 'no_data'>;
 };
 
-// Consensus rule (HSDEV-656). Looks at the last
-// PROBE_CONSENSUS_WINDOW_SECONDS of probes, taking each agent's most
-// recent probe as that agent's vote:
+// Consensus rule (HSDEV-656, debounced in HSDEV-691).
 //
-//   • 0 votes failing                       → operational
-//   • 1 vote failing, ≥2 agents reporting   → operational (single-zone
-//                                             blip — surfaced via the
-//                                             [heads-up] Slack channel,
-//                                             not the public UI)
-//   • ≥2 votes failing in ≥2 regions, not all → partial_outage
-//   • all reporting agents failing           → component.severity_when_down
-//   • ≥2 votes failing in the same region    → performance_issues
-//     (uncommon since we deploy 1 agent per region — fallback)
-//   • no probes in the window                → no_data
+// Per agent, looks at the most recent MIN_CONSECUTIVE_FAILURES_FOR_VOTE
+// probes inside the LIVE_CONSENSUS_LOOKBACK_SECONDS window. The agent's
+// "vote" is failing iff it has at least that many recent probes AND
+// all of them are fails — at the 60s probe cadence that means a
+// sustained outage from that observer of at least
+// (MIN_CONSECUTIVE_FAILURES_FOR_VOTE - 1) probe intervals. Anything
+// shorter (a single CF 5xx, a one-off timeout, or a brand-new agent
+// that hasn't probed enough yet) votes "ok" here and is surfaced via
+// the [heads-up] Slack channel by findNewAgentDissent instead.
 //
-// Note: when only one agent is configured (e.g. before the multi-region
-// roll-out completes), the "all failing" branch catches the single-fail
-// case so the single-agent setup still flips the UI to down — backwards
-// compatible with the descoped behaviour.
+// Votes then aggregate per component:
+//
+//   • 0 failing votes                                  → operational
+//   • all reporting agents failing                     → component.severity_when_down
+//                                                        (covers 1- and 2-agent
+//                                                        setups too — when
+//                                                        everyone agrees we
+//                                                        flip even below the
+//                                                        public-flip threshold)
+//   • < MIN_FAILING_VOTES_FOR_PUBLIC_FLIP failing      → operational publicly
+//                                                        (heads-up only)
+//   • ≥ threshold failing in ≥2 regions, not all       → partial_outage
+//   • ≥ threshold failing in the same region           → performance_issues
+//   • no probes in the window                          → no_data
+//
+// Asymmetric flip-down: an agent stops failing-voting as soon as a
+// single recent probe is ok, so recovery shows on the bar within ~1
+// probe cycle while outage detection takes ~MIN_CONSECUTIVE_FAILURES
+// cycles. That matches the operational goal: faster green, slower red.
 export async function computeComponentStatuses(
   components: ComponentMeta[],
 ): Promise<Map<number, DerivedStatus>> {
@@ -56,16 +93,39 @@ export async function computeComponentStatuses(
 
   if (components.length === 0) return statuses;
 
+  // Rank each agent's probes most-recent-first within the lookback
+  // window, then summarise the top MIN_CONSECUTIVE_FAILURES_FOR_VOTE
+  // per (component, agent): how many we got and whether any were ok.
+  // `any_recent_ok = false` together with `recent_count` at the
+  // required minimum is the debounced "this agent is failing" signal.
   const rows = (await db.execute(sql`
-    SELECT DISTINCT ON (p.component_id, p.agent_id)
-      p.component_id, p.agent_id, p.ok, a.region
-    FROM probes p
-    JOIN agents a ON a.id = p.agent_id
-    WHERE p.observed_at >= NOW() - (${PROBE_CONSENSUS_WINDOW_SECONDS} || ' seconds')::interval
-    ORDER BY p.component_id, p.agent_id, p.observed_at DESC
-  `)) as unknown as ProbeRow[];
+    WITH ranked AS (
+      SELECT
+        p.component_id,
+        p.agent_id,
+        p.ok,
+        p.observed_at,
+        a.region,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.component_id, p.agent_id
+          ORDER BY p.observed_at DESC
+        ) AS rn
+      FROM probes p
+      JOIN agents a ON a.id = p.agent_id
+      WHERE p.observed_at >= NOW() - (${LIVE_CONSENSUS_LOOKBACK_SECONDS} || ' seconds')::interval
+    )
+    SELECT
+      component_id,
+      agent_id,
+      region,
+      COUNT(*)::text AS recent_count,
+      bool_or(ok) AS any_recent_ok
+    FROM ranked
+    WHERE rn <= ${MIN_CONSECUTIVE_FAILURES_FOR_VOTE}
+    GROUP BY component_id, agent_id, region
+  `)) as unknown as AgentVoteRow[];
 
-  const byComponent = new Map<number, ProbeRow[]>();
+  const byComponent = new Map<number, AgentVoteRow[]>();
   for (const r of rows) {
     const list = byComponent.get(r.component_id) ?? [];
     list.push(r);
@@ -76,22 +136,29 @@ export async function computeComponentStatuses(
     components.map((c) => [c.componentId, c.severityWhenDown]),
   );
 
-  for (const [componentId, probes] of byComponent) {
-    const total = probes.length;
-    const failing = probes.filter((p) => !p.ok);
-    const failingRegions = new Set(failing.map((p) => p.region));
+  const isAgentFailing = (r: AgentVoteRow): boolean =>
+    Number(r.recent_count) >= MIN_CONSECUTIVE_FAILURES_FOR_VOTE
+    && !r.any_recent_ok;
+
+  for (const [componentId, votes] of byComponent) {
+    const total = votes.length;
+    const failing = votes.filter(isAgentFailing);
+    const failingRegions = new Set(failing.map((v) => v.region));
 
     if (failing.length === 0) {
       statuses.set(componentId, 'operational');
     } else if (failing.length === total) {
+      // Every reporting agent agrees → flip to severity even if the
+      // count is below MIN_FAILING_VOTES_FOR_PUBLIC_FLIP, so 1- and
+      // 2-agent setups remain useful.
       statuses.set(
         componentId,
         severities.get(componentId) ?? 'major_outage',
       );
-    } else if (failing.length === 1) {
-      // Single-agent dissent — public UI ignores it. The dissent
-      // detector in reactToProbeBatch emits a [heads-up] Slack message
-      // separately.
+    } else if (failing.length < MIN_FAILING_VOTES_FOR_PUBLIC_FLIP) {
+      // Below the public-flip threshold the bar stays green. The
+      // dissent detector still emits a [heads-up] Slack message for
+      // these early-signal cases.
       statuses.set(componentId, 'operational');
     } else if (failingRegions.size >= 2) {
       statuses.set(componentId, 'partial_outage');
