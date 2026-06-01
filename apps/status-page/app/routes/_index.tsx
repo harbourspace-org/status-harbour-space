@@ -1,7 +1,8 @@
-import { and, asc, desc, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
 import { Form, useLoaderData, useLocation } from 'react-router';
 
+import { getAdminSession, isHarbourSpaceEmail } from '../auth.server';
 import { db } from '../db/client';
 import {
   componentGroups,
@@ -23,6 +24,8 @@ import {
 } from '../db/status';
 import { SUPPORTED_LANGS, type Lang } from '../i18n';
 
+import type { Route } from './+types/_index';
+
 export function meta({
   matches,
 }: {
@@ -42,7 +45,10 @@ export function meta({
   ];
 }
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  const session = await getAdminSession(request);
+  const email = session.get('email') as string | undefined;
+  const canSeeInternal = Boolean(email && isHarbourSpaceEmail(email));
   const [
     groupRows,
     componentRows,
@@ -54,10 +60,9 @@ export async function loader() {
       .select()
       .from(componentGroups)
       .orderBy(asc(componentGroups.sortOrder), asc(componentGroups.name)),
-    db
-      .select()
-      .from(components)
-      .orderBy(asc(components.sortOrder), asc(components.name)),
+    canSeeInternal
+      ? db.select().from(components).orderBy(asc(components.sortOrder), asc(components.name))
+      : db.select().from(components).where(eq(components.isStaffOnly, false)).orderBy(asc(components.sortOrder), asc(components.name)),
     getMonitoringHealth(),
     db
       .select()

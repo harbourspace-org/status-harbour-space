@@ -24,6 +24,9 @@ export function getAdminEmails(): string[] {
 export function isAdminEmail(email: string): boolean {
   return getAdminEmails().includes(email.toLowerCase());
 }
+export function isHarbourSpaceEmail(email: string): boolean {
+  return email.toLowerCase().endsWith('@harbour.space');
+}
 
 const sessionStorage = createCookieSessionStorage({
   cookie: {

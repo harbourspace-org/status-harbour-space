@@ -1,4 +1,4 @@
-import { asc, desc, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from './client';
 import {
@@ -32,12 +32,15 @@ export type PublicComponentsPayload = {
   components: PublicComponent[];
 };
 
-export async function getPublicComponents(): Promise<PublicComponentsPayload> {
+export async function getPublicComponents(
+  canSeeInternal = false,
+): Promise<PublicComponentsPayload> {
   const [groupRows, componentRows] = await Promise.all([
     db.select().from(componentGroups),
     db
       .select()
       .from(components)
+      .$if(!canSeeInternal, (q) => q.where(eq(components.isStaffOnly, false)))
       .orderBy(asc(components.sortOrder), asc(components.name)),
   ]);
 

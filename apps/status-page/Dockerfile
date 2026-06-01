@@ -33,6 +33,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 # React Router build output + custom server entry
 COPY --from=build --chown=nodejs:nodejs /app/build ./build
 COPY --from=build --chown=nodejs:nodejs /app/server.js ./server.js
+COPY --from=build --chown=nodejs:nodejs /app/drizzle ./drizzle
 
 USER nodejs
 EXPOSE 3000
