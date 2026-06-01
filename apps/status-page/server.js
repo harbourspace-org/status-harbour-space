@@ -1,3 +1,6 @@
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import postgres from 'postgres';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
@@ -5,6 +8,12 @@ import { createRequestHandler } from 'react-router';
 
 const PORT = Number(process.env.PORT) || 3000;
 const HSTS = 'max-age=31536000; includeSubDomains; preload';
+
+// Run DB migrations before accepting traffic.
+const migrationClient = postgres(process.env.DATABASE_URL, { max: 1 });
+await migrate(drizzle(migrationClient), { migrationsFolder: './drizzle' });
+await migrationClient.end();
+console.log('Migrations applied');
 
 // React Router 7 framework-mode build output.
 const build = await import('./build/server/index.js');

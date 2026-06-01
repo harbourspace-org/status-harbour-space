@@ -15,6 +15,13 @@
       "when": 1777560228411,
       "tag": "0001_bumpy_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780012800000,
+      "tag": "0002_staff_only_components",
+      "breakpoints": true
     }
   ]
 }
