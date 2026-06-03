@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
