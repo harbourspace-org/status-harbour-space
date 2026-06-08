@@ -7,6 +7,7 @@ export default [
   route('subscribe/confirm', 'routes/subscribe.confirm.tsx'),
   route('unsubscribe', 'routes/unsubscribe.tsx'),
   route('feed.atom', 'routes/feed.atom.tsx'),
+  route('api/auth/*', 'routes/api.auth.$.tsx'),
   route('api/components', 'routes/api.components.tsx'),
   route('api/incidents', 'routes/api.incidents.tsx'),
   route('api/internal/components', 'routes/api.internal.components.tsx'),
@@ -14,9 +15,6 @@ export default [
   route('api/internal/probes', 'routes/api.internal.probes.tsx'),
   route('admin', 'routes/admin.tsx', [
     index('routes/admin/_index.tsx'),
-    route('login', 'routes/admin/login.tsx'),
-    route('callback', 'routes/admin/callback.tsx'),
-    route('logout', 'routes/admin/logout.tsx'),
     route('components', 'routes/admin/components._index.tsx'),
     route('components/new', 'routes/admin/components.new.tsx'),
     route('components/:id', 'routes/admin/components.$id.tsx'),

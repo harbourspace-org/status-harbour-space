@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
 import { Form, useLoaderData, useLocation } from 'react-router';
 
-import { getAdminSession, isHarbourSpaceEmail } from '../auth.server';
+import { getSession, isHarbourSpaceEmail } from '../auth.server';
 import { db } from '../db/client';
 import {
   componentGroups,
@@ -46,9 +46,10 @@ export function meta({
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const session = await getAdminSession(request);
-  const email = session.get('email') as string | undefined;
-  const canSeeInternal = Boolean(email && isHarbourSpaceEmail(email));
+  const session = await getSession(request);
+  const canSeeInternal = Boolean(
+    session?.user?.email && isHarbourSpaceEmail(session.user.email),
+  );
   const [
     groupRows,
     componentRows,
