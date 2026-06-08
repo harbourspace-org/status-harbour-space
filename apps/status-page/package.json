@@ -18,6 +18,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@auth/core": "^0.34.3",
     "@hono/node-server": "^1.13.0",
     "@react-router/node": "^7.1.0",
     "drizzle-orm": "^0.45.2",

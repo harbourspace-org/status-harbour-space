@@ -7,23 +7,17 @@ import {
   useLoaderData,
 } from 'react-router';
 
-import { getAdminSession, isAdminEmail } from '../auth.server';
+import { getSession } from '../auth.server';
 import type { Route } from './+types/admin';
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const session = await getAdminSession(request);
-  const email = session.get('email') as string | undefined;
+  const session = await getSession(request);
+  const email = session?.user?.email ?? null;
 
-  // Login + callback are reachable unauthenticated; everything else is gated.
-  if (path === '/admin/login' || path === '/admin/callback') {
-    return { email: email && isAdminEmail(email) ? email : null };
-  }
-
-  if (!email || !isAdminEmail(email)) {
-    const params = new URLSearchParams({ redirectTo: path });
-    throw redirect(`/admin/login?${params.toString()}`);
+  if (!email) {
+    const path = new URL(request.url).pathname;
+    const params = new URLSearchParams({ callbackUrl: path });
+    throw redirect(`/api/auth/signin/keycloak?${params.toString()}`);
   }
 
   return { email };
@@ -42,32 +36,25 @@ export default function AdminLayout() {
           <Link to="/admin" className="text-sm font-semibold">
             Status Admin
           </Link>
-          {email ? (
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-slate-500">{email}</span>
-              <Form method="post" action="/admin/logout">
-                <button type="submit" className="text-slate-500 underline">
-                  Sign out
-                </button>
-              </Form>
-            </div>
-          ) : (
-            <Link to="/" className="text-xs text-slate-500 underline">
-              Back to public page
-            </Link>
-          )}
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-slate-500">{email}</span>
+            <Form method="post" action="/api/auth/signout">
+              <input type="hidden" name="callbackUrl" value="/" />
+              <button type="submit" className="text-slate-500 underline">
+                Sign out
+              </button>
+            </Form>
+          </div>
         </div>
-        {email && (
-          <nav className="border-t border-slate-200 dark:border-slate-800">
-            <div className="mx-auto flex max-w-5xl gap-6 px-6 text-sm">
-              <NavTab to="/admin" end label="Overview" />
-              <NavTab to="/admin/components" label="Components" />
-              <NavTab to="/admin/incidents" label="Incidents" />
-              <NavTab to="/admin/schedules" label="Maintenance" />
-              <NavTab to="/admin/agents" label="Agents" />
-            </div>
-          </nav>
-        )}
+        <nav className="border-t border-slate-200 dark:border-slate-800">
+          <div className="mx-auto flex max-w-5xl gap-6 px-6 text-sm">
+            <NavTab to="/admin" end label="Overview" />
+            <NavTab to="/admin/components" label="Components" />
+            <NavTab to="/admin/incidents" label="Incidents" />
+            <NavTab to="/admin/schedules" label="Maintenance" />
+            <NavTab to="/admin/agents" label="Agents" />
+          </div>
+        </nav>
       </header>
       <main className="mx-auto max-w-5xl px-6 py-8">
         <Outlet />
