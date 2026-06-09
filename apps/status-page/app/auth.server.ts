@@ -55,7 +55,7 @@ export async function requireAdmin(request: Request): Promise<string> {
   if (!session?.user?.email) {
     const redirectTo = new URL(request.url).pathname;
     throw redirect(
-      `/api/auth/signin/keycloak?callbackUrl=${encodeURIComponent(redirectTo)}`,
+      `/api/auth/signin?callbackUrl=${encodeURIComponent(redirectTo)}`,
     );
   }
   return session.user.email;
