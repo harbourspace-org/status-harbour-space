@@ -17,7 +17,20 @@ function ensureHttps(request: Request): Request {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const req = ensureHttps(request);
-  console.log('[auth] loader URL:', req.url);
+  const url = new URL(req.url);
+
+  // @auth/core requires POST for /signin/:provider
+  if (/\/signin\/[^/]+$/.test(url.pathname)) {
+    const callbackUrl = url.searchParams.get('callbackUrl') ?? '/';
+    const body = new URLSearchParams({ callbackUrl, json: 'true' });
+    const postReq = new Request(req.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+    return Auth(postReq, authConfig);
+  }
+
   return Auth(req, authConfig);
 }
 
