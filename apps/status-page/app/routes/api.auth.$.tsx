@@ -2,29 +2,23 @@ import { Auth } from '@auth/core';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { authConfig } from '../auth.server';
 
-export async function loader({ request }: LoaderFunctionArgs) {
+function ensureHttps(request: Request): Request {
   const url = new URL(request.url);
-  
-  if (url.pathname.endsWith('/signin') || url.pathname.includes('/signin/')) {
-    const callbackUrl = url.searchParams.get('callbackUrl') ?? '/admin';
-    return new Response(
-      `<!DOCTYPE html>
-      <html>
-      <body>
-        <form id="f" method="POST" action="/api/auth/signin/keycloak">
-          <input type="hidden" name="callbackUrl" value="${callbackUrl}" />
-          <input type="hidden" name="json" value="true" />
-        </form>
-        <script>document.getElementById('f').submit();</script>
-      </body>
-      </html>`,
-      { headers: { 'Content-Type': 'text/html' } }
-    );
+  if (url.protocol === 'http:') {
+    url.protocol = 'https:';
+    return new Request(url.toString(), {
+      method: request.method,
+      headers: request.headers,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+    });
   }
-  
-  return Auth(request, authConfig);
+  return request;
+}
+
+export async function loader({ request }: LoaderFunctionArgs) {
+  return Auth(ensureHttps(request), authConfig);
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  return Auth(request, authConfig);
+  return Auth(ensureHttps(request), authConfig);
 }
