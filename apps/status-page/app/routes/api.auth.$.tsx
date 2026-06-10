@@ -35,5 +35,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  return Auth(ensureHttps(request), authConfig);
+  const req = ensureHttps(request);
+  console.log('[auth] action URL:', req.url);
+  return Auth(req, authConfig);
 }
