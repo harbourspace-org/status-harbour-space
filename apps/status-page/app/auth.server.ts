@@ -25,6 +25,15 @@ export const authConfig: AuthConfig = {
   // SameSite=Lax + HTTPS provides CSRF protection; skip the double-submit
   // token check so server-side signout POST works without extra round-trips.
   skipCSRFCheck,
+  events: {},
+  callbacks: {
+    async jwt({ token, account }) {
+      if (account) {
+        token.idToken = account.id_token;
+      }
+      return token;
+    },
+  },
 };
 
 export async function getSession(request: Request) {
