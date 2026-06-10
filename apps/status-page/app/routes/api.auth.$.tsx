@@ -37,11 +37,29 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
    const req = ensureHttps(request);
    const url = new URL(req.url);
-  
+   
   if (url.pathname.endsWith('/signout')) {
-    const response = await Auth(req, authConfig);
-    // Also logout from Keycloak
-    const keycloakLogout = `${process.env.KEYCLOAK_ISSUER ?? 'https://auth.harbour.space/auth/realms/HS'}/protocol/openid-connect/logout?redirect_uri=${encodeURIComponent('https://status.harbour.space/')}`;
+    // Clear @auth/core session first
+    await Auth(req, authConfig);
+    
+    // Get id_token from session to pass to Keycloak logout
+    const secureCookie = true;
+    const cookieName = '__Secure-authjs.session-token';
+    const { getToken } = await import('@auth/core/jwt');
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET ?? '',
+      cookieName,
+      salt: cookieName,
+    });
+    
+    const idToken = token?.idToken as string | undefined;
+    const issuer = process.env.KEYCLOAK_ISSUER ?? 'https://auth.harbour.space/auth/realms/HS';
+    const postLogoutUri = encodeURIComponent('https://status.harbour.space/');
+    
+    let keycloakLogout = `${issuer}/protocol/openid-connect/logout?post_logout_redirect_uri=${postLogoutUri}&client_id=status-page`;
+    if (idToken) keycloakLogout += `&id_token_hint=${idToken}`;
+    
     return Response.redirect(keycloakLogout, 302);
   }
   
