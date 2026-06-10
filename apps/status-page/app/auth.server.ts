@@ -13,11 +13,6 @@ export const authConfig: AuthConfig = {
       issuer:
         process.env.KEYCLOAK_ISSUER ??
         'https://auth.harbour.space/auth/realms/HS',
-      authorization: {
-        params: {
-          redirect_uri: 'https://status.harbour.space/api/auth/callback/keycloak',
-        },
-      },
       checks: ['pkce'],
       client: {
         token_endpoint_auth_method: 'none',
