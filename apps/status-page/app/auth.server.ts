@@ -54,9 +54,8 @@ export async function requireAdmin(request: Request): Promise<string> {
   const session = await getSession(request);
   if (!session?.user?.email) {
     const redirectTo = new URL(request.url).pathname;
-    throw redirect(
-      `/api/auth/signin?callbackUrl=${encodeURIComponent(redirectTo)}`,
-    );
+    const params = new URLSearchParams({ callbackUrl: redirectTo });
+    throw redirect(`/api/auth/signin?${params.toString()}`);
   }
   return session.user.email;
 }
