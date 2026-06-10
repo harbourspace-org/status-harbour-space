@@ -47,6 +47,8 @@ export function meta({
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getSession(request);
+  console.log('[index] session:', JSON.stringify(session));
+  console.log('[index] cookie header:', request.headers.get('cookie')?.substring(0, 100));
   const canSeeInternal = Boolean(
     session?.user?.email && isHarbourSpaceEmail(session.user.email),
   );
