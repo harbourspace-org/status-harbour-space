@@ -35,10 +35,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  const req = ensureHttps(request);
-  console.log('[auth] action URL:', req.url);
-  const response = await Auth(req, authConfig);
-  console.log('[auth] action status:', response.status);
-  console.log('[auth] action location:', response.headers.get('location'));
-  return response;
-}
+   const req = ensureHttps(request);
+   const url = new URL(req.url);
+  
+  if (url.pathname.endsWith('/signout')) {
+    const response = await Auth(req, authConfig);
+    // Also logout from Keycloak
+    const keycloakLogout = `${process.env.KEYCLOAK_ISSUER ?? 'https://auth.harbour.space/auth/realms/HS'}/protocol/openid-connect/logout?redirect_uri=${encodeURIComponent('https://status.harbour.space/')}`;
+    return Response.redirect(keycloakLogout, 302);
+  }
+  
+   return Auth(req, authConfig);
+ }
