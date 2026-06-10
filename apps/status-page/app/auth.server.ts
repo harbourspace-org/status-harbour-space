@@ -17,6 +17,7 @@ export const authConfig: AuthConfig = {
   ],
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true,
+  redirectProxyUrl: process.env.NEXTAUTH_URL,
   basePath: '/api/auth',
   // SameSite=Lax + HTTPS provides CSRF protection; skip the double-submit
   // token check so server-side signout POST works without extra round-trips.
