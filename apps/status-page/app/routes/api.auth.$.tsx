@@ -16,7 +16,9 @@ function ensureHttps(request: Request): Request {
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  return Auth(ensureHttps(request), authConfig);
+  const req = ensureHttps(request);
+  console.log('[auth] loader URL:', req.url);
+  return Auth(req, authConfig);
 }
 
 export async function action({ request }: ActionFunctionArgs) {
