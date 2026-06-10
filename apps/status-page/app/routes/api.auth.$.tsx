@@ -37,5 +37,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const req = ensureHttps(request);
   console.log('[auth] action URL:', req.url);
-  return Auth(req, authConfig);
+  const response = await Auth(req, authConfig);
+  console.log('[auth] action status:', response.status);
+  console.log('[auth] action location:', response.headers.get('location'));
+  return response;
 }
