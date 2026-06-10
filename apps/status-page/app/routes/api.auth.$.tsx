@@ -4,24 +4,24 @@ import { authConfig } from '../auth.server';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
-  // Auto-redirect signin page to keycloak provider via POST
-  if (url.pathname.endsWith('/signin')) {
-    const callbackUrl = url.searchParams.get('callbackUrl') ?? '/';
-    const body = new URLSearchParams({
-      callbackUrl,
-      csrfToken: '',
-      json: 'true',
-    });
-    const postRequest = new Request(
-      new URL('/api/auth/signin/keycloak', url).toString(),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-      },
+  
+  if (url.pathname.endsWith('/signin') || url.pathname.includes('/signin/')) {
+    const callbackUrl = url.searchParams.get('callbackUrl') ?? '/admin';
+    return new Response(
+      `<!DOCTYPE html>
+      <html>
+      <body>
+        <form id="f" method="POST" action="/api/auth/signin/keycloak">
+          <input type="hidden" name="callbackUrl" value="${callbackUrl}" />
+          <input type="hidden" name="json" value="true" />
+        </form>
+        <script>document.getElementById('f').submit();</script>
+      </body>
+      </html>`,
+      { headers: { 'Content-Type': 'text/html' } }
     );
-    return Auth(postRequest, authConfig);
   }
+  
   return Auth(request, authConfig);
 }
 
