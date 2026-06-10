@@ -9,7 +9,7 @@ export const authConfig: AuthConfig = {
     Keycloak({
       clientId: process.env.KEYCLOAK_CLIENT_ID ?? 'status-page',
       // Public client — no secret required; pass empty string to satisfy types.
-      clientSecret: process.env.KEYCLOAK_CLIENT_SECRET ?? '',
+      //clientSecret: process.env.KEYCLOAK_CLIENT_SECRET ?? '',
       issuer:
         process.env.KEYCLOAK_ISSUER ??
         'https://auth.harbour.space/auth/realms/HS',
@@ -17,6 +17,10 @@ export const authConfig: AuthConfig = {
         params: {
           redirect_uri: 'https://status.harbour.space/api/auth/callback/keycloak',
         },
+      },
+      checks: ['pkce'],
+      client: {
+        token_endpoint_auth_method: 'none',
       },
     }),
   ],
