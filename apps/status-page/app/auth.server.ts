@@ -65,7 +65,7 @@ export function isHarbourSpaceEmail(email: string): boolean {
 
 export async function requireAdmin(request: Request): Promise<string> {
   const session = await getSession(request);
-  if (!session?.user?.email) {
+  if (!session?.user?.email || !isHarbourSpaceEmail(session.user.email)) {
     const redirectTo = new URL(request.url).pathname;
     const params = new URLSearchParams({ callbackUrl: redirectTo });
     throw redirect(`/api/auth/signin?${params.toString()}`);
