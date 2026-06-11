@@ -58,13 +58,14 @@ export async function action({ request }: ActionFunctionArgs) {
     if (idToken) keycloakLogout += `&id_token_hint=${idToken}`;
 
     // Keep Set-Cookie headers from authResponse but redirect to Keycloak
-    const response = Response.redirect(keycloakLogout, 302);
+    const headers = new Headers();
+    headers.set('location', keycloakLogout);
     authResponse.headers.forEach((value, key) => {
       if (key.toLowerCase() === 'set-cookie') {
-        response.headers.append('set-cookie', value);
+        headers.append('set-cookie', value);
       }
     });
-    return response;
+    return new Response(null, { status: 302, headers });
   }
   
    return Auth(req, authConfig);
