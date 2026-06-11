@@ -33,6 +33,10 @@ export const authConfig: AuthConfig = {
       }
       return token;
     },
+    async signIn({ profile }) {
+      const email = profile?.email ?? '';
+      return email.endsWith('@harbour.space');
+    },
   },
 };
 
