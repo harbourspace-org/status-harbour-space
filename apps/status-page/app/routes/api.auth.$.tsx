@@ -19,6 +19,37 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const req = ensureHttps(request);
   const url = new URL(req.url);
 
+  // Custom error page
+  if (url.pathname.endsWith('/error')) {
+    const error = url.searchParams.get('error');
+    if (error === 'AccessDenied') {
+      const issuer = process.env.KEYCLOAK_ISSUER ?? 'https://auth.harbour.space/auth/realms/HS';
+      const keycloakLogout = `${issuer}/protocol/openid-connect/logout?post_logout_redirect_uri=${encodeURIComponent('https://status.harbour.space/')}&client_id=status-page`;
+      return new Response(
+        `<!DOCTYPE html>
+        <html>
+        <head><title>Access Denied</title>
+        <style>
+          body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0f172a; color: white; }
+          .box { text-align: center; padding: 2rem; }
+          h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+          p { color: #94a3b8; margin-bottom: 1.5rem; }
+          a { background: #3b82f6; color: white; padding: 0.5rem 1.5rem; border-radius: 0.5rem; text-decoration: none; }
+        </style>
+        </head>
+        <body>
+          <div class="box">
+            <h1>Access Denied</h1>
+            <p>Only @harbour.space accounts can access this page.</p>
+            <a href="${keycloakLogout}">Sign out and try another account</a>
+          </div>
+        </body>
+        </html>`,
+        { headers: { 'Content-Type': 'text/html' } }
+      );
+    }
+  }
+
   // @auth/core requires POST for /signin/:provider
   if (/\/signin\/[^/]+$/.test(url.pathname)) {
     const callbackUrl = url.searchParams.get('callbackUrl') ?? '/';
