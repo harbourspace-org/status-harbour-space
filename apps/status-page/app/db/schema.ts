@@ -61,6 +61,9 @@ export const components = pgTable('components', {
   // Cloudflare, GitHub status pages). UI links out instead of showing
   // a probe-derived status.
   isExternal: boolean('is_external').notNull().default(false),
+  // Internal services (e.g. student-admin, qa) visible only to logged-in
+  // @harbour.space staff. Hidden silently for all other visitors.
+  isStaffOnly: boolean('is_staff_only').notNull().default(false),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()

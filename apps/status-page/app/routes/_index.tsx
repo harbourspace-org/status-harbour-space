@@ -1,7 +1,8 @@
-import { and, asc, desc, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { useTranslation } from 'react-i18next';
-import { Form, useLoaderData, useLocation } from 'react-router';
+import { useLoaderData } from 'react-router';
 
+import { getSession, isHarbourSpaceEmail } from '../auth.server';
 import { db } from '../db/client';
 import {
   componentGroups,
@@ -21,7 +22,9 @@ import {
   getMonitoringHealth,
   worstStatus,
 } from '../db/status';
-import { SUPPORTED_LANGS, type Lang } from '../i18n';
+import { type Lang } from '../i18n';
+
+import type { Route } from './+types/_index';
 
 export function meta({
   matches,
@@ -42,7 +45,13 @@ export function meta({
   ];
 }
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  const session = await getSession(request);
+  console.log('[index] session:', JSON.stringify(session));
+  console.log('[index] cookie header:', request.headers.get('cookie')?.substring(0, 100));
+  const canSeeInternal = Boolean(
+    session?.user?.email && isHarbourSpaceEmail(session.user.email),
+  );
   const [
     groupRows,
     componentRows,
@@ -54,10 +63,9 @@ export async function loader() {
       .select()
       .from(componentGroups)
       .orderBy(asc(componentGroups.sortOrder), asc(componentGroups.name)),
-    db
-      .select()
-      .from(components)
-      .orderBy(asc(components.sortOrder), asc(components.name)),
+    canSeeInternal
+      ? db.select().from(components).orderBy(asc(components.sortOrder), asc(components.name))
+      : db.select().from(components).where(eq(components.isStaffOnly, false)).orderBy(asc(components.sortOrder), asc(components.name)),
     getMonitoringHealth(),
     db
       .select()
@@ -242,7 +250,7 @@ function BarLegend() {
     'no_data',
   ];
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+    <div className="mt-4 flex flex-nowrap items-center gap-x-3 gap-y-2 text-[11px] text-slate-500 dark:text-slate-400">
       <span className="font-medium uppercase tracking-wide">
         {t('legend.title')}
       </span>
@@ -361,41 +369,6 @@ function formatUptime(value: number | null, none: string): string {
   return `${pct.toFixed(2)}%`;
 }
 
-function LanguageSwitcher() {
-  const { t, i18n } = useTranslation();
-  const location = useLocation();
-  const current = (
-    SUPPORTED_LANGS as readonly string[]
-  ).includes(i18n.language)
-    ? (i18n.language as Lang)
-    : 'en';
-  const redirectTo = `${location.pathname}${location.search}`;
-  return (
-    <Form method="post" action="/set-lang" className="flex items-center gap-1 text-xs">
-      <span className="sr-only">{t('language.switchLabel')}</span>
-      <input type="hidden" name="redirectTo" value={redirectTo} />
-      {SUPPORTED_LANGS.map((lng, idx) => (
-        <span key={lng} className="contents">
-          {idx > 0 && <span className="text-slate-300">|</span>}
-          <button
-            type="submit"
-            name="lang"
-            value={lng}
-            aria-current={current === lng ? 'true' : undefined}
-            className={
-              current === lng
-                ? 'font-semibold text-brand dark:text-brand'
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-            }
-          >
-            {lng.toUpperCase()}
-          </button>
-        </span>
-      ))}
-    </Form>
-  );
-}
-
 export default function Index() {
   const data = useLoaderData<typeof loader>();
   const { t, i18n } = useTranslation();
@@ -409,7 +382,7 @@ export default function Index() {
   );
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
+    <main className="mx-auto max-w-full px-12 py-12 sm:py-16">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
           <img
@@ -431,12 +404,6 @@ export default function Index() {
             {t('header.suffix')}
           </span>
         </h1>
-        <div className="flex items-center gap-4">
-          <LanguageSwitcher />
-          <span className="hidden text-xs text-slate-400 sm:inline">
-            status.harbour.space
-          </span>
-        </div>
       </header>
 
       <MonitoringBanner monitoring={data.monitoring} />
@@ -548,8 +515,7 @@ export default function Index() {
       <footer className="mt-12 text-xs text-slate-400">
         {t('footer.updated', {
           relative: formatRelative(data.generatedAt, lng, t),
-        })}{' '}
-        · {t('footer.tagline')}
+        })}
       </footer>
     </main>
   );
