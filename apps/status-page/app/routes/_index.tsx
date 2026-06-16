@@ -382,7 +382,7 @@ export default function Index() {
   );
 
   return (
-    <main className="mx-auto max-w-full px-12 py-12 sm:py-16">
+    <main className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
           <img
