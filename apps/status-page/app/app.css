@@ -28,5 +28,6 @@ body {
 }
 
 body {
+  min-height: 100vh;
   background-image: url("https://www.transparenttextures.com/patterns/snow.png");
 }
