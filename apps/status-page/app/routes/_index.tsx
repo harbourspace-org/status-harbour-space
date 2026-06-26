@@ -354,11 +354,16 @@ function formatRelative(
 
 function formatDate(iso: string, lng: string): string {
   const d = new Date(iso);
+  // HSDEV-795: pin to Europe/Madrid (DST-aware via the IANA name) and show the
+  // zone label so the public page matches the admin panel and non-Barcelona
+  // viewers aren't misled by their own browser timezone.
   return d.toLocaleString(lng, {
+    timeZone: 'Europe/Madrid',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    timeZoneName: 'short',
   });
 }
 
